@@ -36,7 +36,10 @@
 #endif
 
 #define ROUND_TO(x , n) ((x) & ~((n) - 1L))
+#define DIV_ROUNDUP(a, b) (((a) + (b) - 1) / (b))
 #define ALIGN_DIFF(x, n) (((intptr_t)((x)+(n) - 1L) & ~((intptr_t)(n) - 1L)) - (intptr_t)(x))
+#define ALIGN_DOWN(x, n) (((intptr_t)(x)) & ~((intptr_t)(n) - 1L))
+#define ALIGN_DOWN_DIFF(x, n) (((intptr_t)(x)) & ((intptr_t)(n) - 1L))
 
 local uLong adler32_combine_(uLong adler1, uLong adler2, z_off64_t len2);
 
@@ -135,6 +138,12 @@ local int host_is_bigendian()
     } x = {1};
     return x.endian[0] == 0;
 }
+
+#ifndef NO_ADLER32_VEC
+#  if defined(__powerpc__) || defined(__powerpc64__)
+#    include "adler32_ppc.c"
+#  endif
+#endif
 
 #ifndef MIN_WORK
 #  define MIN_WORK 16
