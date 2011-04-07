@@ -60,6 +60,22 @@ local uLong adler32_combine_(uLong adler1, uLong adler2, z_off64_t len2);
  * only needs >= 5 instructions
  */
 #  define NO_DIVIDE
+#elif defined(__mips__)
+// TODO: i hate synthetized processors
+/*
+ * If we have a full "high-speed" Multiply/Divide Unit,
+ * the old multiply-by-reciproc should be the best way
+ * (since then we should get a 32x32 mul in 2 cycles?),
+ * but wait, we need 4 muls == 8 + 2 shift + 2 sub + 2 load
+ * imidiate + other.
+ * If we do not have the "full" MDU, a mul takes 32 cycles
+ * and a div 25 (?!?).
+ * GCC generates a classic div, prop. needs the right -mtune
+ * for a mul.
+ * Use our hand rolled reduce, 17 simple instructions for both
+ * operands.
+ */
+#  define NO_DIVIDE
 #endif
 
 /* use NO_DIVIDE if your processor does not do division in hardware */
@@ -144,6 +160,8 @@ local int host_is_bigendian()
 #    include "adler32_arm.c"
 #  elif defined(__alpha__)
 #    include "adler32_alpha.c"
+#  elif defined(__mips__)
+#    include "adler32_mips.c"
 #  elif defined(__powerpc__) || defined(__powerpc64__)
 #    include "adler32_ppc.c"
 #  elif defined(__i386__) || defined(__x86_64__)
