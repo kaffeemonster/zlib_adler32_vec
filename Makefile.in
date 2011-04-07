@@ -236,7 +236,7 @@ depend:
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
-adler32.o: adler32.c adler32_ppc.c adler32_arm.c adler32_x86.c adler32_alpha.c adler32_mips.c adler32_bfin.c zutil.h zlib.h zconf.h
+adler32.o: adler32.c adler32_ppc.c adler32_arm.c adler32_x86.c adler32_alpha.c adler32_mips.c adler32_bfin.c adler32_ia64.c zutil.h zlib.h zconf.h
 zutil.o: zutil.h zlib.h zconf.h
 gzclose.o gzlib.o gzread.o gzwrite.o: zlib.h zconf.h gzguts.h
 compress.o example.o minigzip.o uncompr.o: zlib.h zconf.h

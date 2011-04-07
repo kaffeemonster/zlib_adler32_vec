@@ -162,6 +162,8 @@ local int host_is_bigendian()
 #    include "adler32_alpha.c"
 #  elif defined(__bfin__)
 #    include "adler32_bfin.c"
+#  elif defined(__ia64__)
+#    include "adler32_ia64.c"
 #  elif defined(__mips__)
 #    include "adler32_mips.c"
 #  elif defined(__powerpc__) || defined(__powerpc64__)
