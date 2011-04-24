@@ -127,8 +127,8 @@ local noinline uLong adler32_vec(adler, buf, len)
         s2 += s1;
     } while (--k);
     /* at this point we should not have so big s1 & s2 */
-    reduce(s1);
-    reduce(s2);
+    reduce_x(s1);
+    reduce_x(s2);
 
     /* return recombined sums */
     return (s2 << 16) | s1;
