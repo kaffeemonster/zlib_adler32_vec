@@ -1,5 +1,6 @@
 /* adler32.c -- compute the Adler-32 checksum of a data stream
  * Copyright (C) 1995-2007 Mark Adler
+ * Copyright (C) 2010-2011 Jan Seiffert
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
@@ -104,8 +105,8 @@ local uLong adler32_combine_(uLong adler1, uLong adler2, z_off64_t len2);
     } while (0)
 #    define reduce_x(a) \
     do { \
-        if (MIN_WORK >= (1 << 6) && a >= (BASE << 6)) a -= (BASE << 6); \
-        if (MIN_WORK >= (1 << 5) && a >= (BASE << 5)) a -= (BASE << 5); \
+        if (MIN_WORK > (1 << 5) && a >= (BASE << 6)) a -= (BASE << 6); \
+        if (MIN_WORK > (1 << 4) && a >= (BASE << 5)) a -= (BASE << 5); \
         if (a >= (BASE << 4)) a -= (BASE << 4); \
         if (a >= (BASE << 3)) a -= (BASE << 3); \
         if (a >= (BASE << 2)) a -= (BASE << 2); \
@@ -121,6 +122,7 @@ local uLong adler32_combine_(uLong adler1, uLong adler2, z_off64_t len2);
         b -= a; \
         a <<= 4; \
         a += b; \
+        a = a >= BASE ? a - BASE : a; \
     } while(a >= BASE)
 #    define reduce_x(a) \
     do { \
@@ -340,8 +342,8 @@ local noinline uLong adler32_vec(adler, buf, len)
         s1 += *buf++;
         s2 += s1;
     } while (--k);
-    reduce(s1);
-    reduce(s2);
+    reduce_x(s1);
+    reduce_x(s2);
 
     /* return recombined sums */
     return (s2 << 16) | s1;
