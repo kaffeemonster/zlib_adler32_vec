@@ -244,8 +244,8 @@ local noinline uLong adler32_vec(adler, buf, len)
         s1 += *buf++;
         s2 += s1;
     } while (--len);
-    reduce(s1);
-    reduce(s2);
+    reduce_x(s1);
+    reduce_x(s2);
 
     return (s2 << 16) | s1;
 }
