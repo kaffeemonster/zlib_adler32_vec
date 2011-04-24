@@ -221,11 +221,11 @@ local uLong adler32_SSSE3(adler, buf, len)
             "cmovb	%4, %3\n\t"		/* k = len >= VNMAX ? k : len */
             "sub	%3, %4\n\t"		/* len -= k */
             "cmp	$16, %3\n\t"
-            "jb	88f\n\t"			/* if(k < 16) goto OUT */
+            "jb	8f\n\t"			/* if(k < 16) goto OUT */
 #ifdef __ELF__
             ".subsection 2\n\t"
 #else
-            "jmp	77f\n\t"
+            "jmp	7f\n\t"
 #endif
             ".p2align 2\n"
             /*
@@ -245,7 +245,7 @@ local uLong adler32_SSSE3(adler, buf, len)
 #ifdef __ELF__
             ".previous\n\t"
 #else
-            "77:\n\t"
+            "7:\n\t"
 #endif
             "movdqa	%5, %%xmm5\n\t"		/* get vord_b */
             "prefetchnta	0x70(%0)\n\t"
@@ -313,7 +313,7 @@ local uLong adler32_SSSE3(adler, buf, len)
             "paddd	%%xmm0, %%xmm2\n\t"
             "movd	%%xmm1, %1\n\t"		/* mov vs1 to s1 */
             "movd	%%xmm2, %2\n"		/* mov vs2 to s2 */
-            "88:"
+            "8:"
         : /* %0 */ "=r" (buf),
           /* %1 */ "=r" (s1),
           /* %2 */ "=r" (s2),
@@ -338,8 +338,8 @@ local uLong adler32_SSSE3(adler, buf, len)
 
     if (unlikely(k))
         buf = adler32_jumped(buf, &s1, &s2, k);
-    reduce(s1);
-    reduce(s2);
+    reduce_x(s1);
+    reduce_x(s2);
     return (s2 << 16) | s1;
 }
 
@@ -364,7 +364,7 @@ local uLong adler32_SSE2(adler, buf, len)
             "cmovb	%4, %3\n\t"
             "sub	%3, %4\n\t"
             "cmp	$16, %3\n\t"
-            "jb	88f\n\t"
+            "jb	8f\n\t"
             "prefetchnta	0x70(%0)\n\t"
             "movd	%1, %%xmm4\n\t"
             "movd	%2, %%xmm3\n\t"
@@ -428,7 +428,7 @@ local uLong adler32_SSE2(adler, buf, len)
             "paddd	%%xmm0, %%xmm3\n\t"
             "movd	%%xmm1, %1\n\t"
             "movd	%%xmm3, %2\n"
-            "88:\n\t"
+            "8:\n\t"
         : /* %0 */ "=r" (buf),
           /* %1 */ "=r" (s1),
           /* %2 */ "=r" (s2),
@@ -449,8 +449,8 @@ local uLong adler32_SSE2(adler, buf, len)
 
     if (unlikely(k))
         buf = adler32_jumped(buf, &s1, &s2, k);
-    reduce(s1);
-    reduce(s2);
+    reduce_x(s1);
+    reduce_x(s2);
     return (s2 << 16) | s1;
 }
 
@@ -482,7 +482,7 @@ local noinline uLong adler32_SSE2_no_oooe(adler, buf, len)
             "cmovb	%4, %3\n\t"
             "sub	%3, %4\n\t"
             "cmp	$16, %3\n\t"
-            "jb	88f\n\t"
+            "jb	8f\n\t"
             "movdqa	16+%5, %%xmm6\n\t"
             "movdqa	32+%5, %%xmm5\n\t"
             "prefetchnta	16(%0)\n\t"
@@ -534,7 +534,7 @@ local noinline uLong adler32_SSE2_no_oooe(adler, buf, len)
             "movd	%%xmm1, %1\n\t"
             "paddd	%%xmm0, %%xmm2\n\t"
             "movd	%%xmm2, %2\n"
-            "88:"
+            "8:"
         : /* %0 */ "=r" (buf),
           /* %1 */ "=r" (s1),
           /* %2 */ "=r" (s2),
@@ -554,8 +554,8 @@ local noinline uLong adler32_SSE2_no_oooe(adler, buf, len)
 
     if (unlikely(k))
         buf = adler32_jumped(buf, &s1, &s2, k);
-    reduce(s1);
-    reduce(s2);
+    reduce_x(s1);
+    reduce_x(s2);
     return (s2 << 16) | s1;
 }
 #  endif
@@ -582,10 +582,10 @@ local uLong adler32_SSE(adler, buf, len)
     __asm__ __volatile__ (
             "mov	%6, %3\n\t"
             "cmp	%3, %4\n\t"
-            "cmovb	%4, %3\n"
+            "cmovb	%4, %3\n\t"
             "sub	%3, %4\n\t"
             "cmp	$8, %3\n\t"
-            "jb	88f\n\t"
+            "jb	8f\n\t"
             "movd	%1, %%mm4\n\t"
             "movd	%2, %%mm3\n\t"
             "pxor	%%mm2, %%mm2\n\t"
@@ -593,7 +593,7 @@ local uLong adler32_SSE(adler, buf, len)
 #    ifdef __ELF__
             ".subsection 2\n\t"
 #    else
-            "jmp	77f\n\t"
+            "jmp	7f\n\t"
 #    endif
             ".p2align 2\n"
             "mmx_reduce:\n\t"
@@ -608,7 +608,7 @@ local uLong adler32_SSE(adler, buf, len)
 #    ifdef __ELF__
             ".previous\n\t"
 #    else
-            "77:\n\t"
+            "7:\n\t"
 #    endif
             ".p2align	2\n"
             "3:\n\t"
@@ -666,9 +666,9 @@ local uLong adler32_SSE(adler, buf, len)
             "movd	%%mm4, %4\n\t"
             "add	%4, %1\n\t"
             "movd	%%mm3, %4\n\t"
-            "add	%4, %2\n"
-            "emms\n\t"
-            "88:\n\t"
+            "add	%4, %2\n\t"
+            "emms\n"
+            "8:\n\t"
         : /* %0 */ "=r" (buf),
           /* %1 */ "=r" (s1),
           /* %2 */ "=r" (s2),
@@ -689,8 +689,8 @@ local uLong adler32_SSE(adler, buf, len)
 
     if (unlikely(k))
         buf = adler32_jumped(buf, &s1, &s2, k);
-    reduce(s1);
-    reduce(s2);
+    reduce_x(s1);
+    reduce_x(s2);
     return (s2 << 16) | s1;
 }
 
@@ -718,17 +718,17 @@ local uLong adler32_MMX(adler, buf, len)
     __asm__ __volatile__ (
             "mov	%6, %3\n\t"
             "cmp	%3, %4\n\t"
-            "jae	11f\n\t"
+            "jae	6f\n\t"
             "mov	%4, %3\n"
-            "11:\n\t"
+            "6:\n\t"
             "sub	%3, %4\n\t"
             "cmp	$8, %3\n\t"
-            "jb	88f\n\t"
+            "jb	8f\n\t"
             "sub	$8, %%esp\n\t"
             "movd	%1, %%mm4\n\t"
             "movd	%2, %%mm2\n\t"
             "movq	%5, %%mm3\n"
-            "33:\n\t"
+            "5:\n\t"
             "movq	%%mm2, %%mm0\n\t"
             "pxor	%%mm2, %%mm2\n\t"
             "pxor	%%mm5, %%mm5\n\t"
@@ -739,13 +739,13 @@ local uLong adler32_MMX(adler, buf, len)
             "pxor	%%mm7, %%mm7\n\t"
             "mov	$1024, %1\n\t"
             "cmp	%1, %3\n\t"
-            "jae	44f\n\t"
+            "jae	4f\n\t"
             "mov	%3, %1\n"
-            "44:\n\t"
+            "4:\n\t"
             "and	$-8, %1\n\t"
             "sub	%1, %3\n\t"
             "shr	$3, %1\n\t"
-            ".p2align 4,,7\n"
+            ".p2align 4,,7\n\t"
             ".p2align 3\n"
             "1:\n\t"
             "movq	(%0), %%mm0\n\t"
@@ -781,12 +781,12 @@ local uLong adler32_MMX(adler, buf, len)
             "add	%3, %4\n\t"
             "mov	%6, %3\n\t"
             "cmp	%3, %4\n\t"
-            "jae	22f\n\t"
+            "jae	2f\n\t"
             "mov	%4, %3\n"
-            "22:\n\t"
+            "2:\n\t"
             "sub	%3, %4\n\t"
             "cmp	$7, %3\n\t"
-            "jg	33b\n\t"
+            "jg	5b\n\t"
             "add	$8, %%esp\n\t"
             "movd	%%mm4, %1\n\t"
             "psrlq	$32, %%mm4\n\t"
@@ -795,9 +795,9 @@ local uLong adler32_MMX(adler, buf, len)
             "movd	%%mm4, %4\n\t"
             "add	%4, %1\n\t"
             "movd	%%mm2, %4\n\t"
-            "add	%4, %2\n"
-            "emms\n\t"
-            "88:\n\t"
+            "add	%4, %2\n\t"
+            "emms\n"
+            "8:\n\t"
         : /* %0 */ "=r" (buf),
           /* %1 */ "=r" (s1),
           /* %2 */ "=r" (s2),
@@ -818,8 +818,8 @@ local uLong adler32_MMX(adler, buf, len)
 
     if (unlikely(k))
         buf = adler32_jumped(buf, &s1, &s2, k);
-    reduce(s1);
-    reduce(s2);
+    reduce_x(s1);
+    reduce_x(s2);
     return (s2 << 16) | s1;
 }
 #  endif
@@ -909,48 +909,94 @@ local uLong adler32_x86(adler, buf, len)
 
 #  define FEATURE_WORDS 2
 
+/* ========================================================================= */
 /* data structure */
 struct test_cpu_feature
 {
-    void (*func)(void);
+    int f_type;
     int flags;
     unsigned int features[FEATURE_WORDS];
+};
+
+/* ========================================================================= */
+/* function enum */
+enum adler32_types
+{
+    T_ADLER32_RTSWITCH = 0,
+    T_ADLER32_X86,
+#  ifndef __x86_64__
+    T_ADLER32_MMX,
+    T_ADLER32_SSE,
+#  endif
+    T_ADLER32_SSE2,
+    T_ADLER32_SSSE3,
+    T_ADLER32_MAX
 };
 
 /* ========================================================================= */
 /*
  * Decision table
  */
+
 local const struct test_cpu_feature tfeat_adler32_vec[] =
 {
     /* func                             flags   features       */
-    {(void (*)(void))adler32_SSSE3,         0, {CFB(CFEATURE_CMOV), CFB(CFEATURE_SSSE3)}},
-    {(void (*)(void))adler32_SSE2,          0, {CFB(CFEATURE_SSE2)|CFB(CFEATURE_CMOV), 0}},
+    {T_ADLER32_SSSE3,         0, {CFB(CFEATURE_CMOV), CFB(CFEATURE_SSSE3)}},
+    {T_ADLER32_SSE2,          0, {CFB(CFEATURE_SSE2)|CFB(CFEATURE_CMOV), 0}},
 #  ifndef __x86_64__
-    {(void (*)(void))adler32_SSE,           0, {CFB(CFEATURE_SSE)|CFB(CFEATURE_CMOV), 0}},
-    {(void (*)(void))adler32_MMX,           0, {CFB(CFEATURE_MMX), 0}},
+    {T_ADLER32_SSE,           0, {CFB(CFEATURE_SSE)|CFB(CFEATURE_CMOV), 0}},
+    {T_ADLER32_MMX,           0, {CFB(CFEATURE_MMX), 0}},
 #  endif
-    {(void (*)(void))adler32_x86, CFF_DEFAULT, { 0, 0}},
+    {T_ADLER32_X86, CFF_DEFAULT, { 0, 0}},
 };
 
 /* ========================================================================= */
 /* Prototypes */
-local noinline void *test_cpu_feature(const struct test_cpu_feature *t, unsigned int l);
+local noinline int test_cpu_feature(const struct test_cpu_feature *t, unsigned int l);
 local uLong adler32_vec_runtimesw(uLong adler, const Bytef *buf, uInt len);
 
 /* ========================================================================= */
 /*
+ * Function pointer table
+ */
+local uLong (*const adler32_ptr_tab[])(uLong adler, const Bytef *buf, uInt len) =
+{
+    adler32_vec_runtimesw,
+    adler32_x86,
+#  ifndef __x86_64__
+    adler32_MMX,
+    adler32_SSE,
+#  endif
+    adler32_SSE2,
+    adler32_SSSE3,
+};
+
+/* ========================================================================= */
+#  if _FORTIFY_SOURCE-0 > 0
+/*
+ * Runtime decide var
+ */
+local enum adler32_types adler32_f_type = T_ADLER32_RTSWITCH;
+#  else
+/*
  * Runtime Function pointer
  */
 local uLong (*adler32_vec_ptr)(uLong adler, const Bytef *buf, uInt len) = adler32_vec_runtimesw;
+#  endif
 
 /* ========================================================================= */
 /*
- * Constructor to init the pointer early
+ * Constructor to init the decide var early
  */
 local GCC_ATTR_CONSTRUCTOR void adler32_vec_select(void)
 {
-    adler32_vec_ptr = test_cpu_feature(tfeat_adler32_vec, sizeof (tfeat_adler32_vec)/sizeof (tfeat_adler32_vec[0]));
+    enum adler32_types lf_type =
+        test_cpu_feature(tfeat_adler32_vec, sizeof (tfeat_adler32_vec)/sizeof (tfeat_adler32_vec[0]));
+#  if _FORTIFY_SOURCE-0 > 0
+    adler32_f_type = lf_type;
+#  else
+    adler32_vec_ptr = adler32_ptr_tab[lf_type];
+#  endif
 }
 
 /* ========================================================================= */
@@ -962,19 +1008,48 @@ local noinline uLong adler32_vec(adler, buf, len)
     const Bytef *buf;
     uInt len;
 {
+    /*
+     * Protect us from memory corruption. As long as the function pointer table
+     * resides in rodata, with a little bounding we can prevent arb. code
+     * execution (overwriten vtable pointer). We still may crash if the corruption
+     * is within bounds (or the cpudata gets corrupted too) and we jump into an
+     * function with unsupported instr., but this should mitigate the worst case
+     * scenario.
+     * But it's more expensive than a simple function pointer, so only when more
+     * security is wanted.
+     */
+#  if _FORTIFY_SOURCE-0 > 0
+    enum adler32_types lf_type = adler32_f_type;
+    /*
+     * If the compiler is smart he creates a cmp + sbb + and, cmov have a high
+     * latency and are not always avail.
+     * Otherwise compiler logic is advanced enough to see what's happening here,
+     * so there maybe is a reason why he changes this to a cmov...
+     * (or he simply does not see he can create a conditional -1/0 the cheap way)
+     *
+     * Maybe change it to an unlikely() cbranch? Which still leaves the question
+     * what's the mispredition propability, esp. with lots of different x86
+     * microarchs and not always perfect CFLAGS (-march/-mtune) to arrange the
+     * code to the processors liking.
+     */
+    lf_type &= likely((unsigned)lf_type < (unsigned)T_ADLER32_MAX) ? -1 : 0;
+    return adler32_ptr_tab[lf_type](adler, buf, len);
+#  else
     return adler32_vec_ptr(adler, buf, len);
+#  endif
 }
 
 /* ========================================================================= */
 /*
- * the runtime switcher is a little racy, it should normaly not run if the constructor works
+ * the runtime switcher is a little racy, but this is OK,
+ * it should normaly not run if the constructor works, and
+ * we are on x86, which isn't that picky about ordering
  */
 local uLong adler32_vec_runtimesw(uLong adler, const Bytef *buf, uInt len)
 {
     adler32_vec_select();
     return adler32_vec(adler, buf, len);
 }
-
 
 /* ========================================================================= */
 /* Internal data types */
@@ -1105,21 +1180,21 @@ local void identify_cpu(void)
 }
 
 /* ========================================================================= */
-local noinline void *test_cpu_feature(const struct test_cpu_feature *t, unsigned int l)
+local noinline int test_cpu_feature(const struct test_cpu_feature *t, unsigned int l)
 {
     unsigned int i, j, f;
     identify_cpu();
 
     for (i = 0; i < l; i++) {
         if (t[i].flags & CFF_DEFAULT)
-            return t[i].func;
+            return t[i].f_type;
         for (f = 0, j = 0; j < FEATURE_WORDS; j++)
             f |= (our_cpu.features[j] & t[i].features[j]) ^ t[i].features[j];
         if (f)
             continue;
-        return t[i].func;
+        return t[i].f_type;
     }
-    return NULL; /* die! */
+    return 1; /* default */
 }
 
 #endif
