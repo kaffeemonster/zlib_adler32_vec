@@ -244,6 +244,282 @@ local noinline uLong adler32_vec(adler, buf, len)
     return (s2 << 16) | s1;
 }
 
+#elif defined(__IWMMXT__)
+#  ifndef __GNUC__
+/* GCC doesn't take it's own intrinsic header and ICEs if forced to */
+#    include <mmintrin.h>
+#  else
+typedef unsigned long long __m64;
+
+// TODO: older gcc may need U constrain instead of y?
+static inline __m64 _mm_setzero_si64(void)
+{
+    __m64 r;
+#  if 0
+    asm ("wzero %0" : "=y" (r));
+#  else
+    r = 0;
+#  endif
+    return r;
+}
+/* there is slli/srli and we want to use it, but it's iWMMXt-2 */
+static inline __m64 _mm_sll_pi32(__m64 a, __m64 c)
+{
+    asm ("wsllw %0, %1, %2" : "=y" (a) : "y" (a), "y" (c));
+    return a;
+}
+static inline __m64 _mm_srl_pi32(__m64 a, __m64 c)
+{
+    asm ("wsrlw %0, %1, %2" : "=y" (a) : "y" (a), "y" (c));
+    return a;
+}
+static inline __m64 _mm_sub_pi32(__m64 a, __m64 b)
+{
+    asm ("wsubw %0, %1, %2" : "=y" (a) : "y" (a), "y" (b));
+    return a;
+}
+static inline __m64 _mm_add_pi16(__m64 a, __m64 b)
+{
+    asm ("waddh %0, %1, %2" : "=y" (a) : "y" (a), "y" (b));
+    return a;
+}
+static inline __m64 _mm_add_pi32(__m64 a, __m64 b)
+{
+    asm ("waddw %0, %1, %2" : "=y" (a) : "y" (a), "y" (b));
+    return a;
+}
+static inline __m64 _mm_sada_pu8(__m64 acc, __m64 a, __m64 b)
+{
+    asm ("wsadb %0, %1, %2" : "=y" (acc) : "y" (a), "y" (b), "0" (acc));
+    return acc;
+}
+static inline __m64 _mm_madd_pu16(__m64 a, __m64 b)
+{
+    asm ("wmaddu %0, %1, %2" : "=y" (a) : "y" (a), "y" (b));
+    return a;
+}
+static inline __m64 _mm_mac_pu16(__m64 acc, __m64 a, __m64 b)
+{
+    asm ("wmacu %0, %1, %2" : "=y" (acc) : "y" (a), "y" (b), "0" (acc));
+    return acc;
+}
+static inline __m64 _mm_unpackel_pu8(__m64 a)
+{
+    asm ("wunpckelub %0, %1" : "=y" (a) : "y" (a));
+    return a;
+}
+static inline __m64 _mm_unpackeh_pu8(__m64 a)
+{
+    asm ("wunpckehub %0, %1" : "=y" (a) : "y" (a));
+    return a;
+}
+static inline __m64 _mm_shuffle_pi16(__m64 a, const int m)
+{
+    asm ("wshufh %0, %1, %2" : "=y" (a) : "y" (a), "i" (m));
+    return a;
+}
+static inline unsigned int _mm_extract_pu32(__m64 a, const int m)
+{
+    unsigned int r;
+    asm ("textrmuw %0, %1, %2" : "=r" (r) : "y" (a), "i" (m));
+    return r;
+}
+static inline __m64 _mm_insert_pi32(__m64 a, unsigned int b, const int m)
+{
+    asm ("tinsrw %0, %1, %2" : "=y" (a) : "r" (b), "i" (m), "0" (a));
+    return a;
+}
+static inline __m64 _mm_align_si64(__m64 a, __m64 b, int c)
+{
+    asm ("walignr%U3 %0, %1, %2" : "=y" (a) : "y" (a), "y" (b), "z" (c));
+    return a;
+}
+static inline __m64 _mm_set_pi16(short a, short b, short c, short d)
+{
+    __m64 r = (unsigned long long)d;
+    r |= ((unsigned long long)c) << 16;
+    r |= ((unsigned long long)b) << 32;
+    r |= ((unsigned long long)a) << 48;
+    return r;
+}
+#  endif
+
+// TODO: we could go over NMAX, since we have split the vs2 sum
+/* but we shuffle vs1_r only every 2056 byte, so we can not go full */
+#  define VNMAX (3*NMAX)
+#  define HAVE_ADLER32_VEC
+#  define MIN_WORK 32
+#  define SOV8 (sizeof(__m64))
+
+/* ========================================================================= */
+local inline __m64 vector_reduce(__m64 x)
+{
+    static const __m64 four = 4;
+    static const __m64 sixten = 16;
+    __m64 y = _mm_sll_pi32(x, sixten);
+    x = _mm_srl_pi32(x, sixten);
+    y = _mm_srl_pi32(y, sixten);
+    y = _mm_sub_pi32(y, x);
+    x = _mm_add_pi32(y, _mm_sll_pi32(x, four));
+    return x;
+}
+
+/* ========================================================================= */
+local noinline uLong adler32_vec(adler, buf, len)
+    uLong adler;
+    const Bytef *buf;
+    uInt len;
+{
+    unsigned int s1, s2;
+    unsigned int k;
+
+    s1 = adler & 0xffff;
+    s2 = (adler >> 16) & 0xffff;
+
+    if (likely(len >= 4 * SOV8)) {
+        static const __m64 three = 3;
+        __m64 vs1, vs2;
+        __m64 vzero;
+        __m64 vorder_l, vorder_h;
+        unsigned int f, n;
+
+        vzero = _mm_setzero_si64();
+
+        /* align hard down */
+        f = (unsigned int) ALIGN_DOWN_DIFF(buf, SOV8);
+        buf = (const Bytef *)ALIGN_DOWN(buf, SOV8);
+        n = SOV8 - f;
+
+        /* add n times s1 to s2 for start round */
+        s2 += s1 * n;
+
+        k = len < VNMAX ? len : VNMAX;
+        len -= k;
+
+        /* insert scalar start */
+        vs1 = _mm_insert_pi32(vzero, s1, 0);
+        vs2 = _mm_insert_pi32(vzero, s2, 0);
+
+// TODO: byte order?
+        if (host_is_bigendian()) {
+            vorder_l = _mm_set_pi16(4, 3, 2, 1);
+            vorder_h = _mm_set_pi16(8, 7, 6, 5);
+        } else {
+            vorder_l = _mm_set_pi16(5, 6, 7, 8);
+            vorder_h = _mm_set_pi16(1, 2, 3, 4);
+        }
+
+        {
+            __m64 in = *(const __m64 *)buf;
+
+            /* mask excess info out */
+            if (host_is_bigendian()) {
+                in = _mm_align_si64(vzero, in, n);
+                in = _mm_align_si64(in, vzero, f);
+            } else {
+                in = _mm_align_si64(in, vzero, f);
+                in = _mm_align_si64(vzero, in, n);
+            }
+
+            /* add horizontal and acc */
+            vs1 = _mm_sada_pu8(vs1, in, vzero);
+
+            /* widen bytes to words, apply order and acc */
+            vs2 = _mm_mac_pu16(vs2, _mm_unpackel_pu8(in), vorder_l);
+            vs2 = _mm_mac_pu16(vs2, _mm_unpackeh_pu8(in), vorder_h);
+        }
+
+        buf += SOV8;
+        k -= n;
+
+        do {
+            __m64 vs1_r = vzero;
+
+            do {
+                __m64 vs2_l = vzero, vs2_h = vzero;
+                unsigned int j;
+
+                j  = k >= (257 * SOV8) ? 257 * SOV8 : k;
+                j /= SOV8;
+                k -= j * SOV8;
+                do {
+                    /* get input data */
+                    __m64 in = *(const __m64 *)buf;
+
+                    /* add vs1 for this round */
+                    vs1_r = _mm_add_pi32(vs1_r, vs1);
+
+                    /* add horizontal and acc */
+// TODO: how does wsad really work?
+                    /*
+                     * the Intel iwmmxt 1 & 2 manual says the wsad instruction
+                     * always zeros the upper word (32 in the arm context),
+                     * and then adds all sad into the lower word (again 32
+                     * bit). If the z version is choosen, the lower word is
+                     * also zeroed before, otherwise we get an acc.
+                     *
+                     * Visual studio only knows the sada intrinsic to reflect
+                     * that, but no description, no prototype.
+                     *
+                     * But there is no sada intrinsic in the Intel manual.
+                     * The Intel iwmmxt-1 manual only knows sad & sadz, two
+                     * operands, instead the acc is done with the lvalue
+                     * (which only really works with spec. compiler builtins).
+                     * GCC follows the intel manual (but does gcc manages to
+                     * use the lvalue?).
+                     * To make matters worse the description for the _mm_sad_pu8
+                     * intrinsic says it clears the upper _3_ fields, and only
+                     * acc in the lowest, so only working in 16 Bit.
+                     * So who is wrong?
+                     *
+                     * If this is different between 1 & 2 we are screwed, esp.
+                     * since i can not find a preprocessor define if 1 or 2.
+                     */
+                    vs1 = _mm_sada_pu8(vs1, in, vzero);
+
+                    /* widen bytes to words and acc */
+                    vs2_l = _mm_add_pi16(vs2_l, _mm_unpackel_pu8(in));
+                    vs2_h = _mm_add_pi16(vs2_h, _mm_unpackeh_pu8(in));
+                    buf += SOV8;
+                } while (--j);
+                /* shake and roll vs1_r, so both 32 bit sums get some input */
+                vs1_r = _mm_shuffle_pi16(vs1_r, 0x4e);
+                /* apply order and add to 32 bit */
+                vs2_l = _mm_madd_pu16(vs2_l, vorder_l);
+                vs2_h = _mm_madd_pu16(vs2_h, vorder_h);
+                /* acc */
+                vs2 = _mm_add_pi32(vs2, vs2_l);
+                vs2 = _mm_add_pi32(vs2, vs2_h);
+            } while (k >= SOV8);
+            /* reduce vs1 round sum before multiplying by 8 */
+            vs1_r = vector_reduce(vs1_r);
+            /* add vs1 for this round (8 times) */
+            vs2 = _mm_add_pi32(vs2, _mm_sll_pi32(vs1_r, three));
+            /* reduce both sums to something within 16 bit */
+            vs2 = vector_reduce(vs2);
+            vs1 = vector_reduce(vs1);
+            len += k;
+            k = len < VNMAX ? len : VNMAX;
+            len -= k;
+        } while (likely(k >= SOV8));
+        len += k;
+        vs1 = _mm_add_pi32(vs1, _mm_shuffle_pi16(vs1, 0x4e));
+        vs2 = _mm_add_pi32(vs2, _mm_shuffle_pi16(vs2, 0x4e));
+        s1 = _mm_extract_pu32(vs1, 0);
+        s2 = _mm_extract_pu32(vs2, 0);
+    }
+
+    if (unlikely(len)) do {
+        s1 += *buf++;
+        s2 += s1;
+    } while (--len);
+    /* at this point we should have not so big s1 & s2 */
+    reduce_x(s1);
+    reduce_x(s2);
+
+    return (s2 << 16) | s1;
+}
+
 /* inline asm, so only on GCC (or compatible) && ARM v6 or better */
 #elif defined(__GNUC__) && ( \
         defined(__ARM_ARCH_6__)  || defined(__ARM_ARCH_6J__)  || \
@@ -278,7 +554,7 @@ local noinline uLong adler32_vec(adler, buf, len)
         unsigned int order_lo, order_hi;
 
 // TODO: byte order?
-        if(host_is_bigendian()) {
+        if (host_is_bigendian()) {
             order_lo = 0x00030001;
             order_hi = 0x00040002;
         } else {
