@@ -193,7 +193,7 @@ local noinline uLong adler32_vec(adler, buf, len)
             len += k;
             k = len < VNMAX ? (unsigned) len : VNMAX;
             len -= k;
-        } while (likely(k >= SOVUC));
+        } while (likely(k >= SOVUCQ));
 
         if (likely(k)) {
             /*
