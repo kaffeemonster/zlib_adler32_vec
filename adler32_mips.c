@@ -119,43 +119,49 @@ local noinline uLong adler32_vec(adler, buf, len)
 
         if (likely(k >= SOV8)) do {
             uint32x2_t vs1_r;
-            int t;
+            uint16x4_t vs2_lo, vs2_hi;
+            int t, j;
 
-            /* gcc generates horible loop code... */
+            /*
+             * GCC generates horible loop code, so write
+             * the core loop by hand...
+             */
             __asm__ __volatile__ (
                     ".set noreorder\n\t"
-                    "xor	%3, %3, %3\n\t"
-                    "1:\n\t"
-                    "ldc1	%0, (%6)\n\t"
-                    "addiu	%7, %7, -8\n\t"
-                    "paddw	%3, %1, %3\n\t"
-                    "biadd	%5, %0\n\t"
-                    "punpcklbh	%4, %0, %9\n\t"
-                    "paddw	%1, %5, %1\n\t"
-                    "punpckhbh	%5, %0, %9\n\t"
-                    "pmaddhw	%4, %4, %10\n\t"
-                    "pmaddhw	%5, %5, %11\n\t"
-                    "sltiu	%8, %7, 8\n\t"
-                    "paddw	%2, %2, %4\n\t"
-                    "paddw	%2, %2, %5\n\t"
-                    "beqz	%8, 2f\n\t"
-                    SZPRFX"addiu	%6, %6, 8\n\t"
-                    "ldc1	%0, (%6)\n\t"
-                    "addiu	%7, %7, -8\n\t"
-                    "paddw	%3, %1, %3\n\t"
-                    "biadd	%5, %0\n\t"
-                    "punpcklbh	%4, %0, %9\n\t"
-                    "dsll	%5, %5, %12\n\t"
-                    "paddw	%1, %5, %1\n\t"
-                    "punpckhbh	%5, %0, %9\n\t"
-                    "pmaddhw	%4, %4, %10\n\t"
-                    "pmaddhw	%5, %5, %11\n\t"
-                    "sltiu	%8, %7, 8\n\t"
-                    "paddw	%2, %2, %4\n\t"
-                    "paddw	%2, %2, %5\n\t"
-                    "bnez	%8, 1b\n\t"
-                    SZPRFX"addiu	%6, %6, 8\n\t"
+                    "b	5f\n\t"
+                    "xor	%3, %3, %3\n"
                     "2:\n\t"
+                    "xor	%6, %6, %6\n\t"
+                    "sll	%10, %11, 3\n\t"
+                    "xor	%7, %7, %7\n\t"
+                    "subu	%9, %9, %10\n"
+                    "1:\n\t"
+                    "ldc1	%0, (%8)\n\t"
+                    SZPRFX"addiu	%8, %8, 8\n\t"
+                    "addiu	%11, %11, -1\n\t"
+                    "paddw	%3, %1, %3\n\t"
+                    "biadd	%5, %0\n\t"
+                    "punpcklbh	%4, %0, %12\n\t"
+                    "paddw	%1, %5, %1\n\t"
+                    "punpckhbh	%5, %0, %12\n\t"
+                    "paddh	%6, %6, %4\n\t"
+                    "bnez	%11, 1b\n\t"
+                    "paddh	%7, %7, %5\n\t"
+                    /* loop bottom  */
+                    "pshufh	%1, %1, %15\n\t"
+                    "sltiu	%10, %9, 8\n\t"
+                    "pmaddhw	%4, %6, %13\n\t"
+                    "pmaddhw	%5, %7, %14\n\t"
+                    "paddw	%2, %2, %4\n\t"
+                    "bnez	%10, 4f\n\t"
+                    "paddw	%2, %2, %5\n"
+                    "5:\n\t"
+                    "sltiu	%10, %9, 2064\n\t"
+                    "beqz	%10, 2b\n\t"
+                    "li	%11, 257\n\t"
+                    "b	2b\n\t"
+                    "srl	%11, %9, 3\n"
+                    "4:\n\t"
                     ".set reorder\n\t"
                     : /* %0  */ "=&f" (in8),
                       /* %1  */ "=f" (vs1),
@@ -163,25 +169,34 @@ local noinline uLong adler32_vec(adler, buf, len)
                       /* %3  */ "=&f" (vs1_r),
                       /* %4  */ "=&f" (in_lo),
                       /* %5  */ "=&f" (in_hi),
-                      /* %6  */ "=d" (buf),
-                      /* %7  */ "=r" (k),
-                      /* %8  */ "=r" (t)
-                    : /* %9  */ "f" (v0),
-                      /* %10 */ "f" (vord_lo),
-                      /* %11 */ "f" (vord_hi),
-                      /* %12 */ "f" (32),
-                      /* %12 */ "1" (vs1),
-                      /* %13 */ "2" (vs2),
-                      /* %15 */ "6" (buf),
-                      /* %16 */ "7" (k)
+                      /* %6  */ "=&f" (vs2_lo),
+                      /* %7  */ "=&f" (vs2_hi),
+                      /* %8  */ "=d" (buf),
+                      /* %9  */ "=r" (k),
+                      /* %10 */ "=r" (t),
+                      /* %11 */ "=r" (j)
+                    : /* %12 */ "f" (v0),
+                      /* %13 */ "f" (vord_lo),
+                      /* %14 */ "f" (vord_hi),
+                      /* %15 */ "f" (0x4e),
+                      /* %15 */ "1" (vs1),
+                      /* %16 */ "2" (vs2),
+                      /* %17 */ "8" (buf),
+                      /* %18 */ "9" (k)
             );
-            /*
-             * and the rest of the generated code also looks awful,
-             * looks like gcc does not know he can shift and and in
-             * the copro regs + is a little lost with reg allocation
-             * in the copro...
-             * But besides of some extra moves & stuff, let the compiler
-             * handle this.
+            /* And the rest of the generated code also looks awful.
+             * Looks like GCC is missing instruction patterns for:
+             * - 64 bit shifts in loongson copro regs
+             * - logic in loongson copro regs
+             * and to make things much worse, GCC seems to be missing
+             * a loongson copro register <-> copro register move
+             * pattern (for example using an or instruction), instead
+             * GCC always moves over the GPR.
+             *
+             * But still, let the compiler handle this, we get some
+             * extra moves between copro regs and GPR, but save us
+             * a lot of work.
+             * And maybe some day some one will fix this...
              */
 
             /* reduce vs1 round sum before multiplying by 8 */
@@ -198,9 +213,7 @@ local noinline uLong adler32_vec(adler, buf, len)
 
         if (likely(k)) {
             uint32x2_t vk;
-            /*
-             * handle trailer
-             */
+            /* handle trailer */
             f = SOV8 - k;
 
             vk = (uint32x2_t)(unsigned long long)k;
@@ -210,12 +223,14 @@ local noinline uLong adler32_vec(adler, buf, len)
             /* add k times vs1 for this trailer */
             /* apply order, add 4 byte horizontal and add to old dword */
             __asm__ (
-                    "ldc1	%0, %10\n\t"
+                    "ldc1	%0, %11\n\t"
+                    "pmuluw	%3, %1, %6\n\t"
+                    "pshufh	%1, %1, %10\n\t"
+                    "paddw	%2, %2, %3\n\t"
                     "pmuluw	%3, %1, %6\n\t"
                     "dsll	%0, %0, %5\n\t"
-                    "dsrl	%0, %0, %5\n\t"
-                    "paddw	%2, %2, %3\n\t"
                     "biadd	%4, %0\n\t"
+                    "paddw	%2, %2, %3\n\t"
                     "punpcklbh	%3, %0, %7\n\t"
                     "paddw	%1, %1, %4\n\t"
                     "punpckhbh	%4, %0, %7\n\t"
@@ -233,9 +248,10 @@ local noinline uLong adler32_vec(adler, buf, len)
                       /* %7  */ "f" (v0),
                       /* %8  */ "f" (vord_lo),
                       /* %9  */ "f" (vord_hi),
-                      /* %10 */ "m" (*buf),
-                      /* %11 */ "1" (vs1),
-                      /* %12 */ "2" (vs2)
+                      /* %10 */ "f" (0x4e),
+                      /* %11 */ "m" (*buf),
+                      /* %12 */ "1" (vs1),
+                      /* %13 */ "2" (vs2)
             );
 
             buf += k;
