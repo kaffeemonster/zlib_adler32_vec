@@ -222,7 +222,7 @@ local uLong adler32_SSSE3(adler, buf, len)
             "sub	%3, %4\n\t"		/* len -= k */
             "cmp	$16, %3\n\t"
             "jb	8f\n\t"			/* if(k < 16) goto OUT */
-#ifdef __ELF__
+#if defined(__ELF__) && !defined(__clang__)
             ".subsection 2\n\t"
 #else
             "jmp	7f\n\t"
@@ -242,7 +242,7 @@ local uLong adler32_SSSE3(adler, buf, len)
             "pslld	$4, %%xmm0\n\t"		/* x <<= 4 */
             "paddd	%%xmm1, %%xmm0\n\t"	/* x += y */
             "ret\n\t"
-#ifdef __ELF__
+#if defined(__ELF__) && !defined(__clang__)
             ".previous\n\t"
 #else
             "7:\n\t"
