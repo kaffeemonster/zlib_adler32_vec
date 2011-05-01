@@ -18,11 +18,11 @@
 #  include <limits.h>
 #  ifdef __mips_loongson_vector_rev
 #    define HAVE_ADLER32_VEC
-#    define MIN_WORK 16
+#    define MIN_WORK 64
 
 #    include <loongson.h>
 #    define SOV8 (sizeof(uint8x8_t))
-#    define VNMAX (5*NMAX)
+#    define VNMAX (4*NMAX)
 
 /* GCCs loongson port looks like a quick hack.
  * It can output some simple vector instruction sequences,
@@ -59,8 +59,8 @@ local noinline uLong adler32_vec(adler, buf, len)
     if(likely(len >= 2*SOV8))
     {
         /* Loongsons and their ST MMX foo are little endian */
-        static const int16x4_t vord_lo = {5,6,7,8};
-        static const int16x4_t vord_hi = {1,2,3,4};
+        static const int16x4_t vord_lo = {8,7,6,5};
+        static const int16x4_t vord_hi = {4,3,2,1};
         uint32x2_t vs2, vs1;
         int16x4_t in_lo, in_hi;
         uint8x8_t v0 = {0};
@@ -259,8 +259,8 @@ local noinline uLong adler32_vec(adler, buf, len)
         }
 
         /* add horizontal */
-        vs1 = paddw_u(vs1, (uint32x2_t)pshufh_u((uint16x4_t)v0, (uint16x4_t)vs1, 0xE));
-        vs2 = paddw_u(vs2, (uint32x2_t)pshufh_u((uint16x4_t)v0, (uint16x4_t)vs2, 0xE));
+        vs1 = paddw_u(vs1, (uint32x2_t)pshufh_u((uint16x4_t)v0, (uint16x4_t)vs1, 0x4E));
+        vs2 = paddw_u(vs2, (uint32x2_t)pshufh_u((uint16x4_t)v0, (uint16x4_t)vs2, 0x4E));
         /* shake and roll */
         s1 = (unsigned int)(unsigned long long)vs1;
         s2 = (unsigned int)(unsigned long long)vs2;
