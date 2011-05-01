@@ -154,6 +154,7 @@ local noinline uLong adler32_vec(adler, buf, len)
                      */
                     /* get input data */
                     in16 = *(const uint8x16_t *)buf;
+                    buf += SOVUCQ;
 
                     /* add vs1 for this round */
                     vs1_r = vaddq_u32(vs1_r, vs1);
@@ -163,7 +164,6 @@ local noinline uLong adler32_vec(adler, buf, len)
                     /* apply order, word long and acc */
                     vs2_lo = vmlal_u8(vs2_lo, vget_low_u8(in16), vget_low_u8(vord));
                     vs2_hi = vmlal_u8(vs2_hi, vget_high_u8(in16), vget_high_u8(vord));
-                    buf += SOVUCQ;
                 } while(--j);
                 /* pair wise add long and acc */
                 vs2 = vpadalq_u16(vs2, vs2_lo);
@@ -429,6 +429,7 @@ local noinline uLong adler32_vec(adler, buf, len)
                 do {
                     /* get input data */
                     __m64 in = *(const __m64 *)buf;
+                    buf += SOV8;
 
                     /* add vs1 for this round */
                     vs1_r = _mm_add_pi32(vs1_r, vs1);
@@ -464,7 +465,6 @@ local noinline uLong adler32_vec(adler, buf, len)
                     /* widen bytes to words and acc */
                     vs2_l = _mm_add_pi16(vs2_l, _mm_unpackel_pu8(in));
                     vs2_h = _mm_add_pi16(vs2_h, _mm_unpackeh_pu8(in));
-                    buf += SOV8;
                 } while (--j);
                 /* shake and roll vs1_r, so both 32 bit sums get some input */
                 vs1_r = _mm_shuffle_pi16(vs1_r, 0x4e);
@@ -505,14 +505,23 @@ local noinline uLong adler32_vec(adler, buf, len)
 }
 
 /* inline asm, so only on GCC (or compatible) && ARM v6 or better */
-#elif defined(__GNUC__) && ( \
+#elif 0 && defined(__GNUC__) && ( \
         defined(__ARM_ARCH_6__)  || defined(__ARM_ARCH_6J__)  || \
         defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6ZK__) || \
         defined(__ARM_ARCH_7A__) \
       )
+/* This code is disabled, since it is not faster, only for reference.
+ * We are at speedup: 0.952830
+ * Again counting instructions is futile, 5 instructions per 4 bytes
+ * against at least 3 per byte (loop overhead excluded) is no win.
+ * And split sums also does not save us.
+ */
 #  define SOU32 (sizeof(unsigned int))
 #  define HAVE_ADLER32_VEC
 #  define MIN_WORK 16
+// TODO: maybe 2*NMAX is possible, but that's very thin
+/* this way we are at 0xda */
+#  define VNMAX (NMAX+((NMAX*9)/10))
 
 /* ========================================================================= */
 local noinline uLong adler32_vec(adler, buf, len)
@@ -537,7 +546,6 @@ local noinline uLong adler32_vec(adler, buf, len)
         unsigned int vs1 = s1, vs2 = s2;
         unsigned int order_lo, order_hi;
 
-// TODO: byte order?
         if (host_is_bigendian()) {
             order_lo = 0x00030001;
             order_hi = 0x00040002;
@@ -545,62 +553,44 @@ local noinline uLong adler32_vec(adler, buf, len)
             order_lo = 0x00020004;
             order_hi = 0x00010003;
         }
-// TODO: we could go over NMAX, since we have split the vs2 sum
-        /* something around (NMAX+(NMAX/3)+302) */
-        k = len < NMAX ? len : NMAX;
+        k = len < VNMAX ? len : VNMAX;
         len -= k;
 
         do {
             unsigned int vs1_r = 0;
             do {
-                unsigned int t21, t22, in;
+                unsigned int j;
+                unsigned int vs2_lo = 0, vs2_hi = 0;
 
-                /* get input data */
-                in = *(const unsigned int *)buf;
-
-                /* add vs1 for this round */
-                vs1_r += vs1;
-
-                /* add horizontal and acc */
-                asm ("usada8 %0, %1, %2, %3" : "=r" (vs1) : "r" (in), "r" (0), "r" (vs1));
-                /* widen bytes to words, apply order, add and acc */
-                asm ("uxtb16 %0, %1" : "=r" (t21) : "r" (in));
-                asm ("uxtb16 %0, %1, ror #8" : "=r" (t22) : "r" (in));
-// TODO: instruction result latency
-                /*
-                 * The same problem like the classic serial sum:
-                 * Chip maker sell us 1-cycle instructions, but that is not the
-                 * whole story. Nearly all 1-cycle chips are pipelined, so
-                 * you can get one result per cycle, but only if _they_ (plural)
-                 * are independent.
-                 * If you are depending on the result of an preciding instruction,
-                 * in the worst case you hit the instruction latency which is worst
-                 * case >= pipeline length. On the other hand there are result-fast-paths.
-                 * This could all be a wash with the classic sum (4 * 2 instructions,
-                 * + dependence), since smald is:
-                 * - 2 cycle issue
-                 * - needs the acc in pipeline step E1, instead of E2
-                 * But the Cortex has a fastpath for acc.
-                 * I don't know.
-                 * We can not even unroll, we would need 4 order vars, return ENOREGISTER.
-                 */
-                asm ("smlad %0, %1, %2, %3" : "=r" (vs2) : "r" (t21) , "r" (order_lo), "r" (vs2));
-                asm ("smlad %0, %1, %2, %3" : "=r" (vs2) : "r" (t22) , "r" (order_hi), "r" (vs2));
-
-                buf += SOU32;
-                k -= SOU32;
+                j  = (k/4) >= 128 ? 128 : (k/4);
+                k -= j * 4;
+                do {
+                    /* get input data */
+                    unsigned int in = *(const unsigned int *)buf;
+                    buf += SOU32;
+                    /* add vs1 for this round */
+                    vs1_r += vs1;
+                    /* add horizontal and acc */
+                    asm ("usada8 %0, %1, %2, %3" : "=r" (vs1) : "r" (in), "r" (0), "r" (vs1));
+                    /* widen bytes to words and acc */
+                    asm ("uxtab16 %0, %1, %2" : "=r" (vs2_lo) : "r" (vs2_lo), "r" (in));
+                    asm ("uxtab16 %0, %1, %2, ror #8" : "=r" (vs2_hi) : "r" (vs2_hi), "r" (in));
+                } while (--j);
+                /* aply order and acc */
+                asm ("smlad %0, %1, %2, %3" : "=r" (vs2) : "r" (vs2_lo) , "r" (order_lo), "r" (vs2));
+                asm ("smlad %0, %1, %2, %3" : "=r" (vs2) : "r" (vs2_hi) , "r" (order_hi), "r" (vs2));
             } while (k >= SOU32);
             /* reduce vs1 round sum before multiplying by 4 */
             reduce(vs1_r);
             /* add vs1 for this round (4 times) */
             vs2 += vs1_r * 4;
-            /* reduce both sums to something within 16 bit */
+            /* reduce both sums */
             reduce(vs2);
             reduce(vs1);
             len += k;
-            k = len < NMAX ? len : NMAX;
+            k = len < VNMAX ? len : VNMAX;
             len -= k;
-        } while (likely(k >= 4 * SOU32));
+        } while (likely(k >= SOU32));
         len += k;
         s1 = vs1;
         s2 = vs2;
@@ -610,7 +600,7 @@ local noinline uLong adler32_vec(adler, buf, len)
         s1 += *buf++;
         s2 += s1;
     } while (--len);
-    /* at this point we should no have so big s1 & s2 */
+    /* at this point we should not have so big s1 & s2 */
     reduce_x(s1);
     reduce_x(s2);
 
