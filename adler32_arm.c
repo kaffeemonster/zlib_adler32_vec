@@ -8,8 +8,7 @@
 
 /* @(#) $Id$ */
 
-#if defined(__ARM_NEON__)
-// TODO: need byte order define
+#if defined(__ARM_NEON__) && defined(__ARMEL__)
 /*
  * Big endian NEON qwords are kind of broken.
  * They are big endian within the dwords, but WRONG
@@ -18,15 +17,13 @@
  *
  * This is madness and unsupportable. For this reason
  * GCC wants to disable qword endian specific patterns.
- * We would need a Preprocessor define which endian we
- * have to disable this code.
  */
 #  include <arm_neon.h>
 
 #  define SOVUCQ sizeof(uint8x16_t)
 #  define SOVUC sizeof(uint8x8_t)
-/* since we do not have the 64bit psadbw sum, we could prop. do a little more */
-#  define VNMAX (6*NMAX)
+/* since we do not have the 64bit psadbw sum, we could still go a little higher (we are at 0xc) */
+#  define VNMAX (8*NMAX)
 #  define HAVE_ADLER32_VEC
 #  define MIN_WORK 32
 
@@ -86,11 +83,7 @@ local noinline uLong adler32_vec(adler, buf, len)
     s1 = adler & 0xffff;
     s2 = (adler >> 16) & 0xffff;
 
-// TODO: big endian mask is prop. wrong
-    if (host_is_bigendian())
-        vord = (uint8x16_t){16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1};
-    else
-        vord = (uint8x16_t){1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+    vord = (uint8x16_t){16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1};
 
     if (likely(len >= 2*SOVUCQ)) {
         unsigned f, n;
@@ -130,14 +123,8 @@ local noinline uLong adler32_vec(adler, buf, len)
         /* get input data */
         in16 = *(const uint8x16_t *)buf;
         /* mask out excess data */
-        if(host_is_bigendian()) {
-            in16 = neon_simple_alignq(v0, in16, n);
-            vord_a = neon_simple_alignq(v0, vord, n);
-        } else {
-            in16 = neon_simple_alignq(in16, v0, f);
-            vord_a = neon_simple_alignq(vord, v0, f);
-        }
-
+        in16 = neon_simple_alignq(in16, v0, f);
+        vord_a = neon_simple_alignq(vord, v0, f);
         /* pairwise add bytes and long, pairwise add word long acc */
         vs1 = vpadalq_u16(vs1, vpaddlq_u8(in16));
         /* apply order, add words, pairwise add word long acc */
@@ -154,33 +141,33 @@ local noinline uLong adler32_vec(adler, buf, len)
         if (likely(k >= SOVUCQ)) do {
             uint32x4_t vs1_r = v0_32;
             do {
-                /* add vs1 for this round */
-                vs1_r = vaddq_u32(vs1_r, vs1);
+                uint16x8_t vs2_lo = (uint16x8_t)v0_32, vs2_hi = (uint16x8_t)v0_32;
+                unsigned j;
 
-                /* get input data */
-                in16 = *(const uint8x16_t *)buf;
+                j  = (k/16) > 16 ? 16 : k/16;
+                k -= j * 16;
+                do {
+                    /* GCC does not create the most pretty inner loop,
+                     * with extra moves and stupid scheduling, but
+                     * i am not in the mood for inline ASM, keep it
+                     * compatible.
+                     */
+                    /* get input data */
+                    in16 = *(const uint8x16_t *)buf;
 
-// TODO: make work in inner loop more tight
-                /*
-                 * decompose partial sums, so we do less instructions and
-                 * build loops around it to do acc and so on only from time
-                 * to time.
-                 * This is hard with NEON, because the instruction are nice:
-                 * we have the stuff in widening and with acc (practicaly
-                 * for free...)
-                 */
-                /* pairwise add bytes and long, pairwise add word long acc */
-                vs1 = vpadalq_u16(vs1, vpaddlq_u8(in16));
-                /* apply order, add words, pairwise add word long acc */
-                vs2 = vpadalq_u16(vs2,
-                        vmlal_u8(
-                            vmull_u8(vget_low_u8(in16), vget_low_u8(vord)),
-                            vget_high_u8(in16), vget_high_u8(vord)
-                            )
-                        );
+                    /* add vs1 for this round */
+                    vs1_r = vaddq_u32(vs1_r, vs1);
 
-                buf += SOVUCQ;
-                k -= SOVUCQ;
+                    /* pairwise add bytes and long, pairwise add word long acc */
+                    vs1 = vpadalq_u16(vs1, vpaddlq_u8(in16));
+                    /* apply order, word long and acc */
+                    vs2_lo = vmlal_u8(vs2_lo, vget_low_u8(in16), vget_low_u8(vord));
+                    vs2_hi = vmlal_u8(vs2_hi, vget_high_u8(in16), vget_high_u8(vord));
+                    buf += SOVUCQ;
+                } while(--j);
+                /* pair wise add long and acc */
+                vs2 = vpadalq_u16(vs2, vs2_lo);
+                vs2 = vpadalq_u16(vs2, vs2_hi);
             } while (k >= SOVUCQ);
             /* reduce vs1 round sum before multiplying by 16 */
             vs1_r = vector_reduce(vs1_r);
@@ -206,10 +193,7 @@ local noinline uLong adler32_vec(adler, buf, len)
             /* get input data */
             in16 = *(const uint8x16_t *)buf;
             /* masks out bad data */
-            if(host_is_bigendian())
-                in16 = neon_simple_alignq(in16, v0, f);
-            else
-                in16 = neon_simple_alignq(v0, in16, k);
+            in16 = neon_simple_alignq(v0, in16, k);
 
             /* pairwise add bytes and long, pairwise add word long acc */
             vs1 = vpadalq_u16(vs1, vpaddlq_u8(in16));
