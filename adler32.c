@@ -400,6 +400,46 @@ local noinline uLong adler32_vec(adler, buf, len)
 #endif
 
 /* ========================================================================= */
+#if MIN_WORK - 16 > 0
+#  ifndef NO_ADLER32_GE16
+uLong ZEXPORT adler32_ge16(adler, buf, len)
+    uLong adler;
+    const Bytef *buf;
+    uInt len;
+{
+    unsigned long sum2;
+    unsigned n;
+
+    /* split Adler-32 into component sums */
+    sum2 = (adler >> 16) & 0xffff;
+    adler &= 0xffff;
+    n = len / 16;
+    len %= 16;
+
+    do {
+        DO16(buf); /* 16 sums unrolled */
+        buf += 16;
+    } while (--n);
+
+    /* handle trailer */
+    while (len--) {
+        adler += *buf++;
+        sum2 += adler;
+    }
+
+    reduce_x(adler);
+    reduce_x(sum2);
+
+    /* return recombined sums */
+    return adler | (sum2 << 16);
+}
+#  endif
+#  define COMMON_WORK 16
+#else
+#  define COMMON_WORK MIN_WORK
+#endif
+
+/* ========================================================================= */
 uLong ZEXPORT adler32(adler, buf, len)
     uLong adler;
     const Bytef *buf;
@@ -414,8 +454,12 @@ uLong ZEXPORT adler32(adler, buf, len)
         return 1L;
 
     /* in case short lengths are provided, keep it somewhat fast */
-    if (len < MIN_WORK)
+    if (len < COMMON_WORK)
         return adler32_common(adler, buf, len);
+#if MIN_WORK - 16 > 0
+    if (len < MIN_WORK)
+        return adler32_ge16(adler, buf, len);
+#endif
 
     return adler32_vec(adler, buf, len);
 }
