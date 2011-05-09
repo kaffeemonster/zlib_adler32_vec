@@ -830,64 +830,45 @@ local uLong adler32_x86(adler, buf, len)
     const Bytef *buf;
     uInt len;
 {
+    /* split Adler-32 into component sums */
     unsigned int s1 = adler & 0xffff;
     unsigned int s2 = (adler >> 16) & 0xffff;
     unsigned int n;
 
-    while (likely(len)) {
-#  ifndef __x86_64__
-#    define LOOP_COUNT 4
-#  else
-#    define LOOP_COUNT 8
-#  endif
-        unsigned int k;
+    do {
+        /* find maximum, len or NMAX */
         n = len < NMAX ? len : NMAX;
         len -= n;
-        k = n / LOOP_COUNT;
-        n %= LOOP_COUNT;
 
-        if (likely(k)) do {
-            /*
-             * Modern compiler can do "wonders".
-             * Only if they would not "trick them self" sometime.
-             * This was unrolled 16 times not because someone
-             * anticipated autovectorizing compiler, but the
-             * classical "avoid loop overhead".
-             *
-             * But things get tricky if the compiler starts to see:
-             * "hey lets disambiguate one sum step from the other",
-             * the classical prevent-pipeline-stalls-thing.
-             *
-             * Suddenly we have 16 temporary sums, which unfortunatly
-             * blows x86 limited register set...
-             *
-             * Loopunrolling is also a little bad for the I-cache.
-             *
-             * So tune this down for x86.
-             * Instead we try to keep it in the register set. 4 sums fits
-             * into i386 register set with no framepointer.
-             * x86_64 is a little more splendit, but still we can not
-             * take 16, so take 8 sums.
-             */
-            s1 += buf[0]; s2 += s1;
-            s1 += buf[1]; s2 += s1;
-            s1 += buf[2]; s2 += s1;
-            s1 += buf[3]; s2 += s1;
-#  ifdef __x86_64__
-            s1 += buf[4]; s2 += s1;
-            s1 += buf[5]; s2 += s1;
-            s1 += buf[6]; s2 += s1;
-            s1 += buf[7]; s2 += s1;
-#  endif
-            buf  += LOOP_COUNT;
-        } while(likely(--k));
-        if (n) do {
-            s1 += *buf++;
-            s2 += s1;
-        } while (--n);
+        /* do it */
+        buf = adler32_jumped(buf, &s1, &s2, n);
+        /* reduce it */
         reduce_full(s1);
         reduce_full(s2);
-    }
+    } while (likely(len));
+
+    /* return recombined sums */
+    return (s2 << 16) | s1;
+}
+
+/* ========================================================================= */
+#define NO_ADLER32_GE16
+local noinline uLong adler32_ge16(adler, buf, len)
+    uLong adler;
+    const Bytef *buf;
+    uInt len;
+{
+    /* split Adler-32 into component sums */
+    unsigned int s1 = adler & 0xffff;
+    unsigned int s2 = (adler >> 16) & 0xffff;
+
+    /* simply do it, we do not expect more then NMAX as len */
+    adler32_jumped(buf, &s1, &s2, len);
+    /* actually we expect much less, reduce_x it */
+    reduce_x(s1);
+    reduce_x(s2);
+
+    /* return recombined sums */
     return (s2 << 16) | s1;
 }
 
