@@ -402,7 +402,7 @@ local noinline uLong adler32_vec(adler, buf, len)
 /* ========================================================================= */
 #if MIN_WORK - 16 > 0
 #  ifndef NO_ADLER32_GE16
-uLong ZEXPORT adler32_ge16(adler, buf, len)
+local noinline uLong adler32_ge16(adler, buf, len)
     uLong adler;
     const Bytef *buf;
     uInt len;
