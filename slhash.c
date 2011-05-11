@@ -1,0 +1,30 @@
+/* slhash.c -- slide the hash table during fill_window()
+ * Copyright (C) 1995-2010 Jean-loup Gailly and Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+#include "deflate.h"
+#define NIL 0
+
+local void update_hoffset(Posf *p, uInt wsize, unsigned n)
+{
+    register unsigned m;
+    do {
+        m = *p;
+        *p++ = (Pos)(m >= wsize ? m-wsize : NIL);
+    } while (--n);
+}
+
+void ZLIB_INTERNAL _sh_slide (p, q, wsize, n)
+    Posf *p;
+    Posf *q;
+    uInt wsize;
+    unsigned n;
+{
+    update_hoffset(p, wsize, n);
+#ifndef FASTEST
+    /* If n is not on any hash chain, prev[n] is garbage but
+     * its value will never be used.
+     */
+    update_hoffset(q, wsize, wsize);
+#endif
+}
