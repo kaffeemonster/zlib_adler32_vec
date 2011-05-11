@@ -6,7 +6,9 @@
 #define NIL 0
 
 #ifndef NO_SLHASH_VEC
-#  if defined(__i386__) || defined(__x86_64__)
+#  if defined(__arm__)
+#    include "arm/slhash.c"
+#  elif defined(__i386__) || defined(__x86_64__)
 #    include "x86/slhash.c"
 #  endif
 #endif
