@@ -222,6 +222,7 @@ local void update_hoffset_MMX(Posf *p, uInt wsize, unsigned n)
         update_hoffset_x86(p, wsize, n);
 }
 
+#  ifndef __x86_64__
 /* ========================================================================= */
 local noinline void slhash_MMX(Posf *p, Posf *q, uInt wsize, unsigned n)
 {
@@ -239,6 +240,7 @@ local noinline void slhash_MMX(Posf *p, Posf *q, uInt wsize, unsigned n)
 #  endif
     asm volatile ("emms");
 }
+#endif
 
 /* ========================================================================= */
 local noinline void update_hoffset_x86(Posf *p, uInt wsize, unsigned n)
