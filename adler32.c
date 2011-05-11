@@ -129,7 +129,7 @@ local int host_is_bigendian()
 #  if defined(__arm__)
 #    include "arm/adler32.c"
 #  elif defined(__alpha__)
-#    include "alha/adler32.c"
+#    include "alpha/adler32.c"
 #  elif defined(__bfin__)
 #    include "bfin/adler32.c"
 #  elif defined(__ia64__)
