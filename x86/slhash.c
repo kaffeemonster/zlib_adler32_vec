@@ -84,9 +84,9 @@ local void update_hoffset_SSE4_1(Posf *p, uInt wsize, unsigned n)
         : /* %3 */ "r" (wsize),
           /*  */ "0" (p),
           /*  */ "1" (i)
-#ifdef __SSE2__
+#  ifdef __SSE2__
         : "xmm0", "xmm7"
-#endif
+#  endif
     );
     if (unlikely(n))
         update_hoffset_x86(p, wsize, n);
@@ -159,9 +159,9 @@ local void update_hoffset_SSE2(Posf *p, uInt wsize, unsigned n)
         : /* %3 */ "r" (wsize),
           /*  */ "0" (p),
           /*  */ "1" (i)
-#ifdef __SSE2__
+#  ifdef __SSE2__
         : "xmm0", "xmm7"
-#endif
+#  endif
     );
     if (unlikely(n))
         update_hoffset_x86(p, wsize, n);
@@ -214,9 +214,9 @@ local void update_hoffset_MMX(Posf *p, uInt wsize, unsigned n)
         : /* %2 */ "r" (wsize),
           /*  */ "0" (p),
           /*  */ "1" (i)
-#ifdef __MMX__
+#  ifdef __MMX__
         : "mm0", "mm7"
-#endif
+#  endif
     );
     if (unlikely(n))
         update_hoffset_x86(p, wsize, n);
@@ -232,15 +232,15 @@ local noinline void slhash_MMX(Posf *p, Posf *q, uInt wsize, unsigned n)
     }
 
     update_hoffset_MMX(p, wsize, n);
-#  ifndef FASTEST
+#    ifndef FASTEST
     /* If n is not on any hash chain, prev[n] is garbage but
      * its value will never be used.
      */
     update_hoffset_MMX(q, wsize, wsize);
-#  endif
+#    endif
     asm volatile ("emms");
 }
-#endif
+#  endif
 
 /* ========================================================================= */
 local noinline void update_hoffset_x86(Posf *p, uInt wsize, unsigned n)
