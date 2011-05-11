@@ -127,21 +127,21 @@ local int host_is_bigendian()
 
 #ifndef NO_ADLER32_VEC
 #  if defined(__arm__)
-#    include "adler32_arm.c"
+#    include "arm/adler32.c"
 #  elif defined(__alpha__)
-#    include "adler32_alpha.c"
+#    include "alha/adler32.c"
 #  elif defined(__bfin__)
-#    include "adler32_bfin.c"
+#    include "bfin/adler32.c"
 #  elif defined(__ia64__)
-#    include "adler32_ia64.c"
+#    include "ia64/adler32.c"
 #  elif defined(__mips__)
-#    include "adler32_mips.c"
+#    include "mips/adler32.c"
 #  elif defined(__powerpc__) || defined(__powerpc64__)
-#    include "adler32_ppc.c"
+#    include "ppc/adler32.c"
 #  elif defined(__sparc) || defined(__sparc__)
-#    include "adler32_sparc.c"
+#    include "sparc/adler32.c"
 #  elif defined(__i386__) || defined(__x86_64__)
-#    include "adler32_x86.c"
+#    include "x86/adler32.c"
 #  endif
 #endif
 
