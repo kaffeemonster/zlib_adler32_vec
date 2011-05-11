@@ -10,38 +10,6 @@
 
 #define local static
 
-#define GCC_VERSION_GE(x) ((__GNUC__-0) * 100 + __GNUC_MINOR__-0 >= x)
-
-#if GCC_VERSION_GE(301)
-/* sometimes leakes out of old kernel header */
-#  undef noinline
-#  define noinline __attribute__((__noinline__))
-#else
-#  ifndef noinline
-#    define noinline
-#  endif
-#endif
-
-#if GCC_VERSION_GE(301)
-# define GCC_ATTR_UNUSED_PARAM __attribute__((__unused__))
-#else
-# define GCC_ATTR_UNUSED_PARAM
-#endif
-
-#if GCC_VERSION_GE(296)
-#  define likely(x)   __builtin_expect(!!(x), 1)
-#  define unlikely(x) __builtin_expect(!!(x), 0)
-#else
-#  define likely(x)   (x)
-#  define unlikely(x) (x)
-#endif
-
-#define ROUND_TO(x , n) ((x) & ~((n) - 1L))
-#define DIV_ROUNDUP(a, b) (((a) + (b) - 1) / (b))
-#define ALIGN_DIFF(x, n) (((intptr_t)((x)+(n) - 1L) & ~((intptr_t)(n) - 1L)) - (intptr_t)(x))
-#define ALIGN_DOWN(x, n) (((intptr_t)(x)) & ~((intptr_t)(n) - 1L))
-#define ALIGN_DOWN_DIFF(x, n) (((intptr_t)(x)) & ((intptr_t)(n) - 1L))
-
 local uLong adler32_combine_(uLong adler1, uLong adler2, z_off64_t len2);
 
 #define BASE 65521UL    /* largest prime smaller than 65536 */
@@ -233,14 +201,6 @@ local noinline uLong adler32_common(adler, buf, len)
  * This needs some register but x86_64 is fine (>= 9 for the mainloop
  * req.). If your 64 Bit arch is more limited, throw it away...
  */
-#    ifndef UINT64_C
-#      if defined(_MSC_VER) || defined(__BORLANDC__)
-#        define UINT64_C(c)    (c ## ui64)
-#      else
-#        define UINT64_C(c)    (c ## ULL)
-#      endif
-#    endif
-
 #    undef VNMAX
 #    define VNMAX (2*NMAX+((9*NMAX)/10))
 
