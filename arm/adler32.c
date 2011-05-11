@@ -506,10 +506,15 @@ local noinline uLong adler32_vec(adler, buf, len)
 
 /* inline asm, so only on GCC (or compatible) && ARM v6 or better */
 #elif 0 && defined(__GNUC__) && ( \
-        defined(__ARM_ARCH_6__)  || defined(__ARM_ARCH_6J__)  || \
-        defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6ZK__) || \
-        defined(__ARM_ARCH_7A__) \
-      )
+        defined(__thumb2__)  && ( \
+            !defined(__ARM_ARCH_7__) && !defined(__ARM_ARCH_7M__) \
+        ) || ( \
+        !defined(__thumb__) && ( \
+            defined(__ARM_ARCH_6__)   || defined(__ARM_ARCH_6J__)  || \
+            defined(__ARM_ARCH_6T2__) || defined(__ARM_ARCH_6ZK__) || \
+            defined(__ARM_ARCH_7A__)  || defined(__ARM_ARCH_7R__) \
+        )) \
+    )
 /* This code is disabled, since it is not faster, only for reference.
  * We are at speedup: 0.952830
  * Again counting instructions is futile, 5 instructions per 4 bytes
