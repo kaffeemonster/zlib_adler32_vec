@@ -8,11 +8,7 @@
 
 /* @(#) $Id$ */
 
-#if GCC_VERSION_GE(207)
-#  define GCC_ATTR_CONSTRUCTOR __attribute__((__constructor__))
-#else
-#  define VEC_NO_GO
-#endif
+#include "x86.h"
 
 #if GCC_VERSION_GE(203)
 #  define GCC_ATTR_ALIGNED(x) __attribute__((__aligned__(x)))
@@ -24,12 +20,6 @@
 #if defined(__GNUC__) && !defined(VEC_NO_GO)
 #  define HAVE_ADLER32_VEC
 #  define MIN_WORK 64
-
-#  ifdef __x86_64__
-#    define PICREG "%%rbx"
-#  else
-#    define PICREG "%%ebx"
-#  endif
 
 /* ========================================================================= */
 local const struct { short d[24]; } vord GCC_ATTR_ALIGNED(16) = {
@@ -872,33 +862,10 @@ local noinline uLong adler32_ge16(adler, buf, len)
     return (s2 << 16) | s1;
 }
 
-/* ========================================================================= */
+
 /*
  * Knot it all together with a runtime switch
  */
-
-/* Flags */
-#  define CFF_DEFAULT (1 << 0)
-/* Processor features */
-#  define CFEATURE_CMOV  (15 +   0)
-#  define CFEATURE_MMX   (23 +   0)
-#  define CFEATURE_SSE   (25 +   0)
-#  define CFEATURE_SSE2  (26 +   0)
-#  define CFEATURE_SSSE3 ( 9 +  32)
-
-#  define CFB(x) (1 << ((x)%32))
-
-#  define FEATURE_WORDS 2
-
-/* ========================================================================= */
-/* data structure */
-struct test_cpu_feature
-{
-    int f_type;
-    int flags;
-    unsigned int features[FEATURE_WORDS];
-};
-
 /* ========================================================================= */
 /* function enum */
 enum adler32_types
@@ -915,10 +882,7 @@ enum adler32_types
 };
 
 /* ========================================================================= */
-/*
- * Decision table
- */
-
+/* Decision table */
 local const struct test_cpu_feature tfeat_adler32_vec[] =
 {
     /* func                             flags   features       */
@@ -933,13 +897,10 @@ local const struct test_cpu_feature tfeat_adler32_vec[] =
 
 /* ========================================================================= */
 /* Prototypes */
-local noinline int test_cpu_feature(const struct test_cpu_feature *t, unsigned int l);
 local uLong adler32_vec_runtimesw(uLong adler, const Bytef *buf, uInt len);
 
 /* ========================================================================= */
-/*
- * Function pointer table
- */
+/* Function pointer table */
 local uLong (*const adler32_ptr_tab[])(uLong adler, const Bytef *buf, uInt len) =
 {
     adler32_vec_runtimesw,
@@ -954,25 +915,19 @@ local uLong (*const adler32_ptr_tab[])(uLong adler, const Bytef *buf, uInt len) 
 
 /* ========================================================================= */
 #  if _FORTIFY_SOURCE-0 > 0
-/*
- * Runtime decide var
- */
+/* Runtime decide var */
 local enum adler32_types adler32_f_type = T_ADLER32_RTSWITCH;
 #  else
-/*
- * Runtime Function pointer
- */
+/* Runtime Function pointer */
 local uLong (*adler32_vec_ptr)(uLong adler, const Bytef *buf, uInt len) = adler32_vec_runtimesw;
 #  endif
 
 /* ========================================================================= */
-/*
- * Constructor to init the decide var early
- */
+/* Constructor to init the decide var early */
 local GCC_ATTR_CONSTRUCTOR void adler32_vec_select(void)
 {
     enum adler32_types lf_type =
-        test_cpu_feature(tfeat_adler32_vec, sizeof (tfeat_adler32_vec)/sizeof (tfeat_adler32_vec[0]));
+        _test_cpu_feature(tfeat_adler32_vec, sizeof (tfeat_adler32_vec)/sizeof (tfeat_adler32_vec[0]));
 #  if _FORTIFY_SOURCE-0 > 0
     adler32_f_type = lf_type;
 #  else
@@ -981,9 +936,7 @@ local GCC_ATTR_CONSTRUCTOR void adler32_vec_select(void)
 }
 
 /* ========================================================================= */
-/*
- * Jump function
- */
+/* Jump function */
 local noinline uLong adler32_vec(adler, buf, len)
     uLong adler;
     const Bytef *buf;
@@ -1031,151 +984,4 @@ local uLong adler32_vec_runtimesw(uLong adler, const Bytef *buf, uInt len)
     adler32_vec_select();
     return adler32_vec(adler, buf, len);
 }
-
-/* ========================================================================= */
-/* Internal data types */
-struct cpuid_regs
-{
-    unsigned long eax, ebx, ecx, edx;
-};
-
-local struct
-{
-    unsigned int max_basic;
-    unsigned int features[FEATURE_WORDS];
-    int init_done;
-} our_cpu;
-
-/* ========================================================================= */
-local inline unsigned long read_flags(void)
-{
-    unsigned long f;
-    __asm__ __volatile__ (
-            "pushf\n\t"
-            "pop %0\n\t"
-        : "=r" (f)
-    );
-    return f;
-}
-
-/* ========================================================================= */
-local inline void write_flags(unsigned long f)
-{
-    __asm__ __volatile__ (
-            "push %0\n\t"
-            "popf\n\t"
-        : : "ri" (f) : "cc"
-    );
-}
-
-/* ========================================================================= */
-local inline void cpuid(struct cpuid_regs *regs, unsigned long func)
-{
-    /* save ebx around cpuid call, PIC code needs it */
-    __asm__ __volatile__ (
-            "xchg	%1, " PICREG "\n\t"
-            "cpuid\n\t"
-            "xchg	%1, " PICREG "\n"
-        : /* %0 */ "=a" (regs->eax),
-          /* %1 */ "=r" (regs->ebx),
-          /* %2 */ "=c" (regs->ecx),
-          /* %4 */ "=d" (regs->edx)
-        : /* %5 */ "0" (func),
-          /* %6 */ "2" (regs->ecx)
-        : "cc"
-    );
-}
-
-/* ========================================================================= */
-local inline void cpuids(struct cpuid_regs *regs, unsigned long func)
-{
-    regs->ecx = 0;
-    cpuid(regs, func);
-}
-
-/* ========================================================================= */
-local inline int toggle_eflags_test(const unsigned long mask)
-{
-    unsigned long f;
-    int result;
-
-    f = read_flags();
-    write_flags(f ^ mask);
-    result = !!((f ^ read_flags()) & mask);
-    /*
-     * restore the old flags, the test for i486 tests the alignment
-     * check bit, and left set will confuse the x86 software world.
-     */
-    write_flags(f);
-    return result;
-}
-
-/* ========================================================================= */
-local inline int is_486(void)
-{
-    return toggle_eflags_test(1 << 18);
-}
-
-/* ========================================================================= */
-local inline int has_cpuid(void)
-{
-    return toggle_eflags_test(1 << 21);
-}
-
-/* ========================================================================= */
-local void identify_cpu(void)
-{
-    struct cpuid_regs a;
-
-    if (our_cpu.init_done)
-        return;
-
-    our_cpu.init_done = -1;
-    /* force a write out to memory */
-    __asm__ __volatile__ ("" : : "m" (our_cpu.init_done));
-
-    if (!is_486())
-        return;
-
-    if (!has_cpuid())
-        return;
-
-    /* get the maximum basic leaf number */
-    cpuids(&a, 0x00000000);
-    our_cpu.max_basic = (unsigned int)a.eax;
-    /* we could get the vendor string from ebx, edx, ecx */
-
-    /* get the first basic leaf, if it is avail. */
-    if (our_cpu.max_basic >= 0x00000001)
-        cpuids(&a, 0x00000001);
-    else
-        a.eax = a.ebx = a.ecx = a.edx = 0;
-
-    /* we could extract family, model, stepping from eax */
-
-    /* there is the first set of features */
-    our_cpu.features[0] = a.edx;
-    our_cpu.features[1] = a.ecx;
-
-    /* now we could test the extended features, but is not needed, for now */
-}
-
-/* ========================================================================= */
-local noinline int test_cpu_feature(const struct test_cpu_feature *t, unsigned int l)
-{
-    unsigned int i, j, f;
-    identify_cpu();
-
-    for (i = 0; i < l; i++) {
-        if (t[i].flags & CFF_DEFAULT)
-            return t[i].f_type;
-        for (f = 0, j = 0; j < FEATURE_WORDS; j++)
-            f |= (our_cpu.features[j] & t[i].features[j]) ^ t[i].features[j];
-        if (f)
-            continue;
-        return t[i].f_type;
-    }
-    return 1; /* default */
-}
-
 #endif

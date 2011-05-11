@@ -5,6 +5,14 @@
 #include "deflate.h"
 #define NIL 0
 
+#ifndef NO_SLHASH_VEC
+#  if defined(__i386__) || defined(__x86_64__)
+#    include "x86/slhash.c"
+#  endif
+#endif
+
+#ifndef HAVE_SLHASH_COMPLETE
+#  ifndef HAVE_SLHASH_VEC
 local void update_hoffset(Posf *p, uInt wsize, unsigned n)
 {
     register unsigned m;
@@ -13,6 +21,7 @@ local void update_hoffset(Posf *p, uInt wsize, unsigned n)
         *p++ = (Pos)(m >= wsize ? m-wsize : NIL);
     } while (--n);
 }
+#  endif
 
 void ZLIB_INTERNAL _sh_slide (p, q, wsize, n)
     Posf *p;
@@ -21,10 +30,11 @@ void ZLIB_INTERNAL _sh_slide (p, q, wsize, n)
     unsigned n;
 {
     update_hoffset(p, wsize, n);
-#ifndef FASTEST
+#  ifndef FASTEST
     /* If n is not on any hash chain, prev[n] is garbage but
      * its value will never be used.
      */
     update_hoffset(q, wsize, wsize);
-#endif
+#  endif
 }
+#endif

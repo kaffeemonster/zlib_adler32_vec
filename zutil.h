@@ -63,7 +63,7 @@
 
 #define ROUND_TO(x , n) ((x) & ~((n) - 1L))
 #define DIV_ROUNDUP(a, b) (((a) + (b) - 1) / (b))
-#define ALIGN_DIFF(x, n) (((intptr_t)((x)+(n) - 1L) & ~((intptr_t)(n) - 1L)) - (intptr_t)(x))
+#define ALIGN_DIFF(x, n) (((((intptr_t)(x))+(n) - 1L) & ~((intptr_t)(n) - 1L)) - (intptr_t)(x))
 #define ALIGN_DOWN(x, n) (((intptr_t)(x)) & ~((intptr_t)(n) - 1L))
 #define ALIGN_DOWN_DIFF(x, n) (((intptr_t)(x)) & ((intptr_t)(n) - 1L))
 
