@@ -89,6 +89,19 @@ local inline vector unsigned int vector_reduce(vector unsigned int x)
 }
 
 /* ========================================================================= */
+local inline vector unsigned int vector_load_one_u32(unsigned int x)
+{
+    vector unsigned int val = vec_lde(0, &x);
+    vector unsigned char vperm, mask;
+
+    mask = (vector unsigned char)vec_cmpgt(vec_identl(0), vec_splat_u8(3));
+    vperm = (vector unsigned char)vec_splat((vector unsigned int)vec_lvsl(0, &x), 0);
+    val = vec_perm(val, val, vperm);
+    val = vec_sel(val, vec_splat_u32(0), (vector unsigned int)mask);
+    return val;
+}
+
+/* ========================================================================= */
 local noinline uLong adler32_vec(adler, buf, len)
     uLong adler;
     const Bytef *buf;
@@ -100,7 +113,6 @@ local noinline uLong adler32_vec(adler, buf, len)
     s2 = (adler >> 16) & 0xffff;
 
     if (likely(len >= 2*SOVUC)) {
-        vector unsigned int v0_32 = vec_splat_u32(0);
         vector unsigned int   vsh = vec_splat_u32(4);
         vector unsigned char   v1 = vec_splat_u8(1);
         vector unsigned char vord;
@@ -139,16 +151,12 @@ local noinline uLong adler32_vec(adler, buf, len)
         /* add n times s1 to s2 for start round */
         s2 += s1 * n;
 
-        /* set sums 0 */
-        vs1 = v0_32;
-        vs2 = v0_32;
-
         k = len < VNMAX ? (unsigned)len : VNMAX;
         len -= k;
 
         /* insert scalar start somewhere */
-        vs1 = vec_lde(0, &s1);
-        vs2 = vec_lde(0, &s2);
+        vs1 = vector_load_one_u32(s1);
+        vs2 = vector_load_one_u32(s2);
 
         /* get input data */
         in16 = vec_ldl(0, buf);
@@ -163,7 +171,7 @@ local noinline uLong adler32_vec(adler, buf, len)
         k -= n;
 
         if (likely(k >= SOVUC)) do {
-            vector unsigned int vs1_r = v0_32;
+            vector unsigned int vs1_r = vec_splat_u32(0);
             f  = 512;
             f |= block_num >= 256 ? 0 : block_num << 16;
             vec_dst(buf, f, 2);
@@ -230,8 +238,8 @@ local noinline uLong adler32_vec(adler, buf, len)
 
         /* add horizontal */
         /* stuff should be reduced so no proplem with signed sature */
-        vs1 = (vector unsigned)vec_sums((vector int)vs1, (vector int)v0_32);
-        vs2 = (vector unsigned)vec_sums((vector int)vs2, (vector int)v0_32);
+        vs1 = (vector unsigned int)vec_sums((vector int)vs1, vec_splat_s32(0));
+        vs2 = (vector unsigned int)vec_sums((vector int)vs2, vec_splat_s32(0));
         /* shake and roll */
         vs1 = vec_splat(vs1, 3);
         vs2 = vec_splat(vs2, 3);
