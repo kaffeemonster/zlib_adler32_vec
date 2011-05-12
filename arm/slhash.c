@@ -28,7 +28,7 @@
 
 local void update_hoffset_l(Posf *p, uInt wsize, unsigned n)
 {
-    unsigned int i, j;
+    unsigned int i;
     uint32x4_t vwsize;
 
     vwsize = vdupq_n_u32(wsize);
