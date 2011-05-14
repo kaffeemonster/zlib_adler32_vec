@@ -8,6 +8,8 @@
 #ifndef NO_SLHASH_VEC
 #  if defined(__arm__)
 #    include "arm/slhash.c"
+#  elif defined(__alpha__)
+#    include "alpha/slhash.c"
 #  elif defined(__bfin__)
 #    include "bfin/slhash.c"
 #  elif defined(__powerpc__) || defined(__powerpc64__)
