@@ -21,11 +21,11 @@
 local inline void update_hoffset(Posf *p, uInt wsize, unsigned n)
 {
     if (likely(wsize < (1<<16))) {
-        unsigned int i, f;
+        unsigned int i, f, wst;
         uint16x4_t vwsize;
 
-        wsize = (wsize  << 16) | (wsize  & 0x0000ffff);
-        vwsize = (uint16x4_t)(((unsigned long long)wsize  << 32) | wsize);
+        wst = (wsize  << 16) | (wsize  & 0x0000ffff);
+        vwsize = (uint16x4_t)(((unsigned long long)wst  << 32) | wst);
         /* align */
         f = (unsigned)ALIGN_DIFF(p, SOV4);
         if (unlikely(f)) {
