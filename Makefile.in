@@ -242,7 +242,7 @@ gzclose.o gzlib.o gzread.o gzwrite.o: zlib.h zconf.h gzguts.h
 compress.o example.o minigzip.o uncompr.o: zlib.h zconf.h
 crc32.o: zutil.h zlib.h zconf.h crc32.h
 deflate.o: deflate.h zutil.h zlib.h zconf.h
-slhash.o: slhash.c x86/slhash.c arm/slhash.c ppc/slhash.c bfin/slhash.c alpha/slhash.c deflate.h zutil.h zlib.h zconf.h
+slhash.o: slhash.c x86/slhash.c arm/slhash.c ppc/slhash.c bfin/slhash.c alpha/slhash.c mips/slhash.c deflate.h zutil.h zlib.h zconf.h
 infback.o inflate.o: zutil.h zlib.h zconf.h inftrees.h inflate.h inffast.h inffixed.h
 inffast.o: zutil.h zlib.h zconf.h inftrees.h inflate.h inffast.h
 inftrees.o: zutil.h zlib.h zconf.h inftrees.h
@@ -254,7 +254,7 @@ gzclose.lo gzlib.lo gzread.lo gzwrite.lo: zlib.h zconf.h gzguts.h
 compress.lo example.lo minigzip.lo uncompr.lo: zlib.h zconf.h
 crc32.lo: zutil.h zlib.h zconf.h crc32.h
 deflate.lo: deflate.h zutil.h zlib.h zconf.h
-slhash.lo: slhash.c x86/slhash.c arm/slhash.c ppc/slhash.c bfin/slhash.c alpha/slhash.c deflate.h zutil.h zlib.h zconf.h
+slhash.lo: slhash.c x86/slhash.c arm/slhash.c ppc/slhash.c bfin/slhash.c alpha/slhash.c mips/slhash.c deflate.h zutil.h zlib.h zconf.h
 infback.lo inflate.lo: zutil.h zlib.h zconf.h inftrees.h inflate.h inffast.h inffixed.h
 inffast.lo: zutil.h zlib.h zconf.h inftrees.h inflate.h inffast.h
 inftrees.lo: zutil.h zlib.h zconf.h inftrees.h

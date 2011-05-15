@@ -12,6 +12,8 @@
 #    include "alpha/slhash.c"
 #  elif defined(__bfin__)
 #    include "bfin/slhash.c"
+#  elif defined(__mips__)
+#    include "mips/slhash.c"
 #  elif defined(__powerpc__) || defined(__powerpc64__)
 #    include "ppc/slhash.c"
 #  elif defined(__i386__) || defined(__x86_64__)
