@@ -111,6 +111,78 @@ local void update_hoffset(Posf *p, uInt wsize, unsigned n)
         *p++ = (Pos)(m >= wsize ? m-wsize : NIL);
     } while (--n);
 }
+#elif defined(__IWMMXT__)
+#  define HAVE_SLHASH_VEC
+#  ifndef __GNUC__
+/* GCC doesn't take it's own intrinsic header and ICEs if forced to */
+#    include <mmintrin.h>
+#  else
+typedef unsigned long long __m64;
+
+local inline __m64 _mm_subs_pu16(__m64 a, __m64 b)
+{
+    __m64 ret;
+    asm ("wsubhus %0, %1, %2" : "=y" (ret) : "y" (a), "y" (b));
+    return ret;
+}
+#  endif
+#  define SOV4 (sizeof(__m64))
+
+/* ========================================================================= */
+local inline void update_hoffset(Posf *p, uInt wsize, unsigned n)
+{
+    if (likely(wsize < (1<<16))) {
+        unsigned int i, f, wst;
+        __m64 vwsize;
+
+        wst = (wsize  << 16) | (wsize  & 0x0000ffff);
+        vwsize = (__m64)(((unsigned long long)wst  << 32) | wst);
+        /* align */
+        f = (unsigned)ALIGN_DIFF(p, SOV4);
+        if (unlikely(f)) {
+            f /= sizeof(*p);
+            n -= f;
+            do {
+                register unsigned m = *p;
+                *p++ = (Pos)(m >= wsize ? m-wsize : NIL);
+            } while (--f);
+        }
+
+        /* do it */
+        i  = n / (SOV4/sizeof(*p));
+        n %= SOV4/sizeof(*p);
+        if (i & 1) {
+            __m64 x = _mm_subs_pu16(*(__m64 *)p, vwsize);
+            *(__m64 *)p = x;
+            p += SOV4/sizeof(*p);
+            i--;
+        }
+        i /= 2;
+        do {
+            __m64 x1, x2;
+            x1 = ((__m64 *)p)[0];
+            x2 = ((__m64 *)p)[1];
+            x1 = _mm_subs_pu16(x1, vwsize);
+            x2 = _mm_subs_pu16(x2, vwsize);
+            ((__m64 *)p)[0] = x1;
+            ((__m64 *)p)[1] = x2;
+            p += 2*(SOV4/sizeof(*p));
+        } while (--i);
+
+        /* handle trailer */
+        if (unlikely(n)) {
+            do {
+                register unsigned m = *p;
+                *p++ = (Pos)(m >= wsize ? m-wsize : NIL);
+            } while (--n);
+        }
+    } else {
+        do {
+            register unsigned m = *p;
+            *p++ = (Pos)(m >= wsize ? m-wsize : NIL);
+        } while (--n);
+    }
+}
 #elif defined(__GNUC__) && ( \
         defined(__thumb2__)  && ( \
             !defined(__ARM_ARCH_7__) && !defined(__ARM_ARCH_7M__) \
