@@ -245,9 +245,30 @@ local noinline void slhash_MMX(Posf *p, Posf *q, uInt wsize, unsigned n)
 /* ========================================================================= */
 local noinline void update_hoffset_x86(Posf *p, uInt wsize, unsigned n)
 {
+    /*
+     * This code is cheaper then a cmov, measuring whole loops with
+     * rdtsc:
+     * This code:  593216
+     * compiler:  1019864
+     * (and 1000 runs show the same trend)
+     * Old CPUs without cmov will also love it, better then jumps.
+     *
+     * GCC does not manage to create it, x86 is a cc_mode target,
+     * and prop. will stay forever.
+     */
     do {
         register unsigned m = *p;
-        *p++ = (Pos)(m >= wsize ? m-wsize : NIL);
+        unsigned t;
+        asm (
+            "sub	%2, %0\n\t"
+            "sbb	$0, %1\n\t"
+            : "=r" (m),
+              "=r" (t)
+            : "r" (wsize),
+              "0" (m),
+              "1" (0)
+        );
+        *p++ = (Pos)(m & ~t);
     } while (--n);
 }
 
