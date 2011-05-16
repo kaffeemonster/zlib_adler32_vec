@@ -181,4 +181,57 @@ local void update_hoffset(Posf *p, uInt wsize, unsigned n)
         } while (--n);
     }
 }
+#else
+#  define HAVE_SLHASH_VEC
+#  include <limits.h>
+/*
+ * PowerPC is a complicated beast...
+ *
+ * Most PPC pipelines do not cope well with
+ * conditional branches. The simple ones (embedded
+ * & synthesized) because they are simple, the big
+ * ones because they are ... big.
+ *
+ * And here comes the kicker: PPC does not have a
+ * conditional move. (Or: The isel instruction is
+ * "brand new" for the Power ISA v2.06, a.k.a the
+ * POWER7)
+ * So GCC generates a little branch over a "move
+ * zero". Which is data dependent. Which plays
+ * havok with the branch prediction if the CPU has
+ * one, or simply with the instruciton flow in the
+ * pipeline if not.
+ *
+ * So rewrite this a little to get some kind of
+ * conditional move.
+ * This gives an ~5.6% overall speedup on a G5 with
+ * minigzip to test deflate.
+ *
+ * (going over the flags would be a little faster,
+ * but expressing carry arithmetic in C is cumbersome
+ * and esp. with GCC generates ugly code, which
+ * would bring us to inline asm, and if one PPC does
+ * not like it...)
+ */
+local inline unsigned isel(int a, unsigned x, unsigned y)
+{
+    int mask = a >> 31; /* create mask of 0 or 0xffffffff */
+    /* if a >= 0 return x, else y */
+    return x + ((y - x) & mask);
+}
+
+local void update_hoffset(Posf *p, uInt wsize, unsigned n)
+{
+    if (sizeof(*p)*CHAR_BIT < 32) {
+        do {
+            register unsigned m = *p;
+            *p++ = (Pos)isel(m-wsize, m-wsize, NIL);
+        } while (--n);
+    } else {
+        do {
+            register unsigned m = *p;
+            *p++ = (Pos)(m >= wsize ? m-wsize : NIL);
+        } while (--n);
+    }
+}
 #endif
