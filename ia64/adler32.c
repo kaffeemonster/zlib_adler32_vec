@@ -12,7 +12,7 @@
 #include <limits.h>
 #ifdef __GNUC__
 #  define HAVE_ADLER32_VEC
-#  define MIN_WORK 32
+#  define MIN_WORK 64
 
 #  define VNMAX (7*NMAX)
 #  define SOULL (sizeof(unsigned long long))
@@ -403,20 +403,20 @@ local noinline uLong adler32_vec(adler, buf, len)
 
                 "2:\n\t"
                 "add	buf_ptr_1 = -16, buf_ptr_1\n\t"
-                "pmpy2.r	unpck_01 = vs2_wsum_ll, order_hihi\n\t"
-                "pmpy2.l	unpck_02 = vs2_wsum_ll, order_hihi;;\n\t"
+                "pmpy2.r	unpck_01 = vs2_wsum_ll, order_lolo\n\t"
+                "pmpy2.l	unpck_02 = vs2_wsum_ll, order_lolo;;\n\t"
 
                 "add	buf_ptr_2 = -16, buf_ptr_2\n\t"
-                "pmpy2.r	unpck_03 = vs2_wsum_lh, order_hilo\n\t"
-                "pmpy2.l	unpck_04 = vs2_wsum_lh, order_hilo\n\t"
+                "pmpy2.r	unpck_03 = vs2_wsum_lh, order_lohi\n\t"
+                "pmpy2.l	unpck_04 = vs2_wsum_lh, order_lohi\n\t"
 
                 "padd4	unpck_01 = unpck_01, unpck_02\n\t"
-                "pmpy2.r	unpck_05 = vs2_wsum_hl, order_lohi\n\t"
-                "pmpy2.l	unpck_06 = vs2_wsum_hl, order_lohi;;\n\t"
+                "pmpy2.r	unpck_05 = vs2_wsum_hl, order_hilo\n\t"
+                "pmpy2.l	unpck_06 = vs2_wsum_hl, order_hilo;;\n\t"
 
                 "padd4	unpck_03 = unpck_03, unpck_04\n\t"
-                "pmpy2.r	unpck_07 = vs2_wsum_hh, order_lolo\n\t"
-                "pmpy2.l	unpck_08 = vs2_wsum_hh, order_lolo\n\t"
+                "pmpy2.r	unpck_07 = vs2_wsum_hh, order_hihi\n\t"
+                "pmpy2.l	unpck_08 = vs2_wsum_hh, order_hihi\n\t"
 
                 "padd4	unpck_05 = unpck_05, unpck_06;;\n\t"
                 "padd4	unpck_07 = unpck_07, unpck_08\n\t"
