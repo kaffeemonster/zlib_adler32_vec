@@ -222,16 +222,25 @@ local noinline uLong adler32_vec(adler, buf, len)
                 "(p6) mov	unpck_15 = inner_loop_count\n\t"
                 "(p7) mov	unpck_15 = k;;\n\t"
 
+                "mov	unpck_16 = buf_ptr_1\n\t"
                 "and	unpck_14 = -16, unpck_15\n\t"
-                "and	loop_rem = 63, unpck_15\n\t"
-                "shr.u	unpck_13 = unpck_15, 6;;\n\t"
+                "and	loop_rem = 63, unpck_15;;\n\t"
 
-                "cmp4.eq	p7,p6 = 0, unpck_13;;\n\t"
-                "sub	k = k, unpck_14\n\t"
                 "mov	vs2_wsum_hh = r0\n\t"
+                "shr.u	unpck_13 = unpck_15, 6\n\t"
+                "add	unpck_16 = unpck_15, unpck_16;;\n\t"
 
-                "nop.m 0\n\t"
-                "nop.i 0\n\t"
+                "cmp4.eq	p7,p6 = 0, unpck_13\n\t"
+                "sub	k = k, unpck_14\n\t"
+                "add	unpck_16 = -33, unpck_16;;\n\t"
+
+                /* prefetch end of buffer for this iterration,
+                 * to make sure OS sees possible page faults so
+                 * OS can swap page in, because speculative
+                 * loads will not.
+                 */
+                "lfetch.fault	[unpck_16]\n\t"
+                "nop.i	1\n\t"
                 "(p7) br.cond.dpnt.few 5f\n\t"
 
                 "ld8	input8_3 = [buf_ptr_3], 32\n\t"
