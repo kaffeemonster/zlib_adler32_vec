@@ -168,6 +168,45 @@ local noinline const Bytef *adler32_jumped(buf, s1, s2, k)
     return buf;
 }
 
+
+
+#if 0 && (HAVE_BINUTILS-0) >= 222
+        /*
+         * 2013 Intel will hopefully bring the Haswell CPUs,
+         * which hopefully will have AVX2, which brings integer
+         * ops to the full width AVX regs.
+         */
+        "2:\n\t"
+        "mov	$256, %1\n\t"
+        "cmp	%1, %3\n\t"
+        "cmovb	%3, %1\n\t"
+        "and	$-32, %1\n\t"
+        "sub	%1, %3\n\t"
+        "shr	$5, %1\n\t"
+        "vpxor	%%xmm6, %%xmm6\n\t"
+        ".p2align 4,,7\n"
+        ".p2align 3\n"
+        "1:\n\t"
+        "vmovdqa	(%0), %%ymm0\n\t"
+        "prefetchnta	0x70(%0)\n\t"
+        "vpaddd	%%ymm3, %%ymm7, %%ymm7\n\t"
+        "add	$32, %0\n\t"
+        "dec	%1\n\t"
+        "vpsadbw	%%ymm4, %%ymm0, %%ymm1\n\t"
+        "vpmaddubsw	%%ymm5, %%ymm0, %%ymm0\n\t"
+        "vpaddd	%%ymm1, %%ymm3, %%ymm3\n\t"
+        "vpaddw	%%ymm0, %%ymm6, %%ymm6\n\t"
+        "jnz	1b\n\t"
+        "vpunpckhwd	%%ymm4, %%ymm6, %%xmm0\n\t"
+        "vpunpcklwd	%%ymm4, %%ymm6, %%ymm6\n\t"
+        "vpaddd	%%ymm0, %%ymm2, %%ymm2\n\t"
+        "vpaddd	%%ymm6, %%ymm2, %%ymm2\n\t"
+        "cmp	$32, %3\n\t"
+        "jg	2b\n\t"
+        avx2_reduce
+        ...
+#endif
+
 #if 0
         /*
          * Will XOP processors have SSSE3/AVX??
